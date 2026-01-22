@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import SwiftUI
+import Combine
 
 struct Message: Identifiable {
     let id: Int
@@ -16,13 +18,20 @@ struct Message: Identifiable {
     let contactName: String?
 }
 
-struct ExtractedLink: Identifiable {
+class ExtractedLink: Identifiable, ObservableObject {
     let id = UUID()
     let url: URL
     let message: Message
+    @Published var openGraphData: OpenGraphData?
+    @Published var isLoadingOpenGraph = false
+
+    init(url: URL, message: Message) {
+        self.url = url
+        self.message = message
+    }
 
     var displayTitle: String {
-        url.host ?? url.absoluteString
+        openGraphData?.title ?? url.host ?? url.absoluteString
     }
 
     var displayURL: String {
@@ -36,6 +45,20 @@ struct ExtractedLink: Identifiable {
             return chatId
         } else {
             return "Unknown"
+        }
+    }
+
+    func loadOpenGraphData() {
+        guard openGraphData == nil, !isLoadingOpenGraph else { return }
+
+        isLoadingOpenGraph = true
+
+        Task {
+            let data = await OpenGraphService.shared.fetchMetadata(for: url)
+            await MainActor.run {
+                self.openGraphData = data
+                self.isLoadingOpenGraph = false
+            }
         }
     }
 }

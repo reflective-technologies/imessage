@@ -15,6 +15,8 @@ struct LinkListView: View {
     @State private var errorMessage: String?
     @State private var searchText = ""
     @State private var showPermissionDenied = false
+    @State private var loadedIndices = Set<Int>()
+    @State private var currentLoadingBatch = Set<Int>()
 
     var filteredLinks: [ExtractedLink] {
         if searchText.isEmpty {
@@ -64,12 +66,19 @@ struct LinkListView: View {
                 }
                 .padding()
             } else {
-                List {
-                    ForEach(filteredLinks) { link in
-                        LinkRowView(link: link)
-                            .padding(.vertical, 4)
+                ScrollView {
+                    LazyVStack(spacing: 20) {
+                        ForEach(Array(filteredLinks.enumerated()), id: \.element.id) { index, link in
+                            LinkRow(link: link)
+                                .padding(.horizontal, 12)
+                                .onAppear {
+                                    loadOpenGraphIfNeeded(for: link, at: index)
+                                }
+                        }
                     }
+                    .padding(.vertical, 20)
                 }
+                .background(Color(.windowBackgroundColor))
                 .searchable(text: $searchText, prompt: "Search links or messages")
                 .overlay {
                     if filteredLinks.isEmpty {
@@ -259,78 +268,208 @@ struct LinkListView: View {
             }
         }
     }
+
+    private func loadOpenGraphIfNeeded(for link: ExtractedLink, at index: Int) {
+        // Only load if not already loaded and not currently loading
+        guard !loadedIndices.contains(index),
+              !currentLoadingBatch.contains(index) else {
+            return
+        }
+
+        // Check if we should load based on batch size
+        let activeLoads = currentLoadingBatch.count
+        guard activeLoads < 20 else {
+            return
+        }
+
+        // Mark as loading
+        currentLoadingBatch.insert(index)
+
+        // Load the OpenGraph data
+        link.loadOpenGraphData()
+
+        // After a short delay, mark as loaded and remove from current batch
+        Task {
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            await MainActor.run {
+                loadedIndices.insert(index)
+                currentLoadingBatch.remove(index)
+            }
+        }
+    }
 }
 
-struct LinkRowView: View {
+
+struct OpenGraphPreviewCard: View {
+    let ogData: OpenGraphData
+    let url: URL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Image preview - full width at top
+            if let imageURLString = ogData.imageURL,
+               let imageURL = URL(string: imageURLString) {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        ZStack {
+                            Color(.separatorColor).opacity(0.1)
+                            ProgressView()
+                        }
+                        .frame(height: 200)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 200)
+                            .clipped()
+                    case .failure:
+                        ZStack {
+                            Color(.separatorColor).opacity(0.1)
+                            Image(systemName: "photo")
+                                .font(.system(size: 48))
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(height: 200)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+
+            // Text content below image
+            VStack(alignment: .leading, spacing: 8) {
+                if let title = ogData.title {
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                }
+
+                if let description = ogData.description {
+                    Text(description)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+
+                HStack(spacing: 4) {
+                    if let siteName = ogData.siteName {
+                        Text(siteName.uppercased())
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.secondary)
+                    } else if let host = url.host {
+                        Text(host.uppercased())
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(16)
+        }
+        .background(Color(.textBackgroundColor))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.separatorColor).opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+struct LinkPreviewPlaceholder: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Placeholder image
+            ZStack {
+                Color(.separatorColor).opacity(0.1)
+                ProgressView()
+            }
+            .frame(height: 200)
+
+            // Placeholder text
+            VStack(alignment: .leading, spacing: 8) {
+                Rectangle()
+                    .fill(Color(.separatorColor).opacity(0.2))
+                    .frame(height: 18)
+                    .cornerRadius(4)
+
+                Rectangle()
+                    .fill(Color(.separatorColor).opacity(0.15))
+                    .frame(height: 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .cornerRadius(4)
+
+                Rectangle()
+                    .fill(Color(.separatorColor).opacity(0.1))
+                    .frame(width: 120, height: 12)
+                    .cornerRadius(4)
+            }
+            .padding(16)
+        }
+        .background(Color(.textBackgroundColor))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.separatorColor).opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+struct SimpleLinkView: View {
     let link: ExtractedLink
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "link.circle.fill")
-                    .foregroundColor(.blue)
+        VStack(alignment: .leading, spacing: 0) {
+            // Icon and URL display
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 60, height: 60)
 
-                VStack(alignment: .leading, spacing: 2) {
+                    Image(systemName: "link")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    if let host = link.url.host {
+                        Text(host.uppercased())
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+
                     Text(link.displayTitle)
-                        .font(.headline)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
 
                     Text(link.displayURL)
-                        .font(.caption)
+                        .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
 
                 Spacer()
 
-                Button(action: {
-                    NSWorkspace.shared.open(link.url)
-                }) {
-                    Image(systemName: "arrow.up.forward.square")
-                }
-                .buttonStyle(.plain)
-                .help("Open link")
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.blue)
             }
-
-            if let messageText = link.message.text {
-                Text(messageText)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .padding(.leading, 24)
-            }
-
-            HStack {
-                Image(systemName: link.message.isFromMe ? "person.fill" : "person")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-
-                Text(link.displayContactName)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Text(link.message.date, style: .relative)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.leading, 24)
+            .padding(16)
         }
-        .padding(.vertical, 4)
-        .contextMenu {
-            Button(action: {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(link.displayURL, forType: .string)
-            }) {
-                Label("Copy Link", systemImage: "doc.on.doc")
-            }
-
-            Button(action: {
-                NSWorkspace.shared.open(link.url)
-            }) {
-                Label("Open in Browser", systemImage: "safari")
-            }
-        }
+        .background(Color(.textBackgroundColor))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.separatorColor).opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
