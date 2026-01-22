@@ -63,9 +63,70 @@ class ContactService {
         }
     }
 
-    func getContactName(for identifier: String?) -> String? {
-        guard let identifier = identifier else { return nil }
+    func getContactName(for identifier: String?, groupChatName: String? = nil, participants: String? = nil) -> String? {
+        guard let identifier = identifier, !identifier.isEmpty else { return nil }
 
+        // Check if this is a group chat (identifier starts with "chat")
+        if identifier.hasPrefix("chat") {
+            // If we have an explicit group chat name, use it
+            if let groupName = groupChatName, !groupName.isEmpty {
+                return groupName
+            }
+
+            // If we have participants, format them
+            if let participantString = participants, !participantString.isEmpty {
+                let participantList = participantString.components(separatedBy: ",")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+
+                if !participantList.isEmpty {
+                    return formatGroupChatName(participants: participantList)
+                }
+            }
+
+            // Fallback: just show it's a group chat
+            return "Group Chat"
+        }
+
+        // Single contact - try to look up their name
+        return lookupSingleContact(identifier)
+    }
+
+    private func formatGroupChatName(participants: [String]) -> String {
+        guard !participants.isEmpty else {
+            return "Group Chat"
+        }
+
+        var resolvedNames: [String] = []
+
+        for participant in participants {
+            guard !participant.isEmpty else { continue }
+
+            // Try to resolve each participant to a contact name
+            if let name = lookupSingleContact(participant) {
+                // Extract first name only
+                let components = name.components(separatedBy: " ")
+                let firstName = components.first ?? name
+                if !firstName.isEmpty {
+                    resolvedNames.append(firstName)
+                }
+            }
+        }
+
+        // Show first 3 names, then "(and n others)"
+        if resolvedNames.count > 3 {
+            let firstThree = resolvedNames.prefix(3).joined(separator: ", ")
+            let remaining = resolvedNames.count - 3
+            return "\(firstThree) (and \(remaining) other\(remaining == 1 ? "" : "s"))"
+        } else if !resolvedNames.isEmpty {
+            return resolvedNames.joined(separator: ", ")
+        } else {
+            // Couldn't resolve any names
+            return "Group Chat (\(participants.count) people)"
+        }
+    }
+
+    private func lookupSingleContact(_ identifier: String) -> String? {
         // Try exact match first
         if let name = contactLookup[identifier] {
             return name

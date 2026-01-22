@@ -86,7 +86,13 @@ class MessageService {
                 message.text,
                 message.date,
                 message.is_from_me,
-                chat.chat_identifier
+                chat.chat_identifier,
+                chat.display_name,
+                chat.ROWID as chat_rowid,
+                (SELECT GROUP_CONCAT(handle.id, ',')
+                 FROM chat_handle_join
+                 JOIN handle ON chat_handle_join.handle_id = handle.ROWID
+                 WHERE chat_handle_join.chat_id = chat.ROWID) as participants
             FROM message
             LEFT JOIN chat_message_join ON message.ROWID = chat_message_join.message_id
             LEFT JOIN chat ON chat_message_join.chat_id = chat.ROWID
@@ -127,8 +133,22 @@ class MessageService {
                 chatIdentifier = String(cString: cString)
             }
 
+            var groupChatName: String?
+            if let cString = sqlite3_column_text(statement, 5) {
+                groupChatName = String(cString: cString)
+            }
+
+            var participants: String?
+            if let cString = sqlite3_column_text(statement, 7) {
+                participants = String(cString: cString)
+            }
+
             // Look up contact name
-            let contactName = ContactService.shared.getContactName(for: chatIdentifier)
+            let contactName = ContactService.shared.getContactName(
+                for: chatIdentifier,
+                groupChatName: groupChatName,
+                participants: participants
+            )
 
             let message = Message(
                 id: id,
