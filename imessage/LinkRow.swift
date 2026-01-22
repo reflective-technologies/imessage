@@ -152,7 +152,8 @@ private extension Message {
         date: Date().addingTimeInterval(-3600),
         isFromMe: true,
         chatIdentifier: "iMessage;+15551234567",
-        contactName: "Me"
+        contactName: "Me",
+        payloadData: nil
     )
 
     static let sampleFromOther = Message(
@@ -161,7 +162,8 @@ private extension Message {
         date: Date().addingTimeInterval(-7200),
         isFromMe: false,
         chatIdentifier: "iMessage;+15557654321",
-        contactName: "Taylor Swift"
+        contactName: "Taylor Swift",
+        payloadData: nil
     )
 }
 

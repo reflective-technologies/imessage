@@ -16,6 +16,7 @@ struct Message: Identifiable {
     let isFromMe: Bool
     let chatIdentifier: String?
     let contactName: String?
+    let payloadData: Data?
 }
 
 class ExtractedLink: Identifiable, ObservableObject {

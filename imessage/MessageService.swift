@@ -92,7 +92,8 @@ class MessageService {
                 (SELECT GROUP_CONCAT(handle.id, ',')
                  FROM chat_handle_join
                  JOIN handle ON chat_handle_join.handle_id = handle.ROWID
-                 WHERE chat_handle_join.chat_id = chat.ROWID) as participants
+                 WHERE chat_handle_join.chat_id = chat.ROWID) as participants,
+                message.payload_data
             FROM message
             LEFT JOIN chat_message_join ON message.ROWID = chat_message_join.message_id
             LEFT JOIN chat ON chat_message_join.chat_id = chat.ROWID
@@ -143,6 +144,12 @@ class MessageService {
                 participants = String(cString: cString)
             }
 
+            var payloadData: Data?
+            if let blob = sqlite3_column_blob(statement, 8) {
+                let blobSize = sqlite3_column_bytes(statement, 8)
+                payloadData = Data(bytes: blob, count: Int(blobSize))
+            }
+
             // Look up contact name
             let contactName = ContactService.shared.getContactName(
                 for: chatIdentifier,
@@ -156,7 +163,8 @@ class MessageService {
                 date: date,
                 isFromMe: isFromMe,
                 chatIdentifier: chatIdentifier,
-                contactName: contactName
+                contactName: contactName,
+                payloadData: payloadData
             )
 
             messages.append(message)
@@ -187,11 +195,92 @@ class MessageService {
             for match in matches ?? [] {
                 if let url = match.url {
                     let link = ExtractedLink(url: url, message: message)
+
+                    // Try to extract cached OpenGraph data from iMessage's payload
+                    if let cachedOGData = extractOpenGraphFromPayload(message.payloadData, for: url) {
+                        link.openGraphData = cachedOGData
+                        print("✅ Loaded cached OpenGraph data for: \(url.absoluteString)")
+                    }
+
                     links.append(link)
                 }
             }
         }
 
         return links
+    }
+
+    private func extractOpenGraphFromPayload(_ payloadData: Data?, for url: URL) -> OpenGraphData? {
+        guard let data = payloadData else { return nil }
+
+        do {
+            // Decode the NSKeyedArchiver plist
+            let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
+
+            guard let objects = plist?["$objects"] as? [Any] else {
+                return nil
+            }
+
+            // Find the metadata dictionary that contains title, summary, siteName keys
+            var metadataDict: [String: Any]?
+            var titleUID: Int?
+            var summaryUID: Int?
+            var siteNameUID: Int?
+
+            for object in objects {
+                if let dict = object as? [String: Any] {
+                    if dict.keys.contains("title") && dict.keys.contains("summary") && dict.keys.contains("siteName") {
+                        metadataDict = dict
+
+                        // Extract UIDs
+                        if let titleRef = dict["title"] as? [String: Any],
+                           let uid = titleRef["CF$UID"] as? Int {
+                            titleUID = uid
+                        }
+                        if let summaryRef = dict["summary"] as? [String: Any],
+                           let uid = summaryRef["CF$UID"] as? Int {
+                            summaryUID = uid
+                        }
+                        if let siteNameRef = dict["siteName"] as? [String: Any],
+                           let uid = siteNameRef["CF$UID"] as? Int {
+                            siteNameUID = uid
+                        }
+                        break
+                    }
+                }
+            }
+
+            // Now extract the actual strings using the UIDs
+            var title: String?
+            var summary: String?
+            var siteName: String?
+
+            if let titleUID = titleUID, titleUID < objects.count {
+                title = objects[titleUID] as? String
+            }
+            if let summaryUID = summaryUID, summaryUID < objects.count {
+                summary = objects[summaryUID] as? String
+            }
+            if let siteNameUID = siteNameUID, siteNameUID < objects.count {
+                siteName = objects[siteNameUID] as? String
+            }
+
+            // Only return if we found at least a title
+            if let title = title, !title.isEmpty {
+                return OpenGraphData(
+                    title: title,
+                    description: summary,
+                    imageURL: nil, // We could extract image URL too but it's complex
+                    siteName: siteName,
+                    url: url.absoluteString
+                )
+            }
+
+        } catch {
+            print("⚠️ Failed to parse payload data: \(error)")
+            return nil
+        }
+
+        return nil
     }
 }

@@ -9,6 +9,11 @@ import SwiftUI
 
 @main
 struct imessageApp: App {
+    init() {
+        // Clean up expired cache entries on app launch
+        OpenGraphCacheService.shared.clearExpiredCache()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

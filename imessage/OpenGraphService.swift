@@ -31,7 +31,13 @@ class OpenGraphService {
     func fetchMetadata(for url: URL) async -> OpenGraphData? {
         let urlString = url.absoluteString
 
-        // Check cache first
+        // Check persistent cache first (like iMessage does)
+        if let cached = OpenGraphCacheService.shared.getCachedData(for: url) {
+            print("📦 Using cached OpenGraph data for \(urlString)")
+            return cached
+        }
+
+        // Check memory cache
         if let cached = cache[urlString] {
             return cached
         }
@@ -45,6 +51,9 @@ class OpenGraphService {
             if let twitterData = await fetchTwitterMetadata(for: url) {
                 print("✅ Got Twitter metadata with Twitterbot UA")
                 cache[urlString] = twitterData
+                // Save to persistent cache
+                OpenGraphCacheService.shared.cacheData(twitterData, for: url)
+                print("💾 Saved Twitter data to persistent cache")
                 return twitterData
             } else {
                 print("⚠️  Twitter metadata fetch failed")
@@ -92,6 +101,10 @@ class OpenGraphService {
                 print("   Title: \(ogData.title ?? "none")")
                 print("   Image: \(ogData.imageURL ?? "none")")
                 print("   Site: \(ogData.siteName ?? "none")")
+
+                // Save to persistent cache (like iMessage does)
+                OpenGraphCacheService.shared.cacheData(ogData, for: url)
+                print("💾 Saved to persistent cache")
             } else {
                 print("⚠️  No OpenGraph data found for \(urlString)")
             }
