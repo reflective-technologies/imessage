@@ -17,11 +17,13 @@ class OpenGraphService {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 10
         config.timeoutIntervalForResource = 15
-        // Set User-Agent to look like a real browser
+        // Set User-Agent to look like a social media crawler (better for OpenGraph)
         config.httpAdditionalHeaders = [
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9"
+            "User-Agent": "facebookexternalua Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Cache-Control": "no-cache"
         ]
         session = URLSession(configuration: config)
     }
@@ -32,6 +34,22 @@ class OpenGraphService {
         // Check cache first
         if let cached = cache[urlString] {
             return cached
+        }
+
+        // For X.com/Twitter, use special handling with Twitterbot User-Agent
+        let host = url.host ?? ""
+        let isTwitter = host == "x.com" || host == "twitter.com" || host == "www.x.com" || host == "www.twitter.com"
+
+        if isTwitter {
+            print("🔍 Detected Twitter/X URL: \(url)")
+            if let twitterData = await fetchTwitterMetadata(for: url) {
+                print("✅ Got Twitter metadata with Twitterbot UA")
+                cache[urlString] = twitterData
+                return twitterData
+            } else {
+                print("⚠️  Twitter metadata fetch failed")
+                return nil
+            }
         }
 
         do {
@@ -53,12 +71,18 @@ class OpenGraphService {
             }
 
             // Debug: Check if we got actual HTML or JavaScript redirect
-            let htmlPreview = String(html.prefix(500))
-            if html.contains("twitter:") || html.contains("og:") {
+            let htmlPreview = String(html.prefix(800))
+            let hasTwitterTags = html.contains("twitter:title") || html.contains("twitter:image")
+            let hasOGTags = html.contains("og:title") || html.contains("og:image")
+
+            if hasTwitterTags || hasOGTags {
                 print("📄 HTML contains meta tags for \(urlString)")
+                print("   Twitter tags: \(hasTwitterTags), OG tags: \(hasOGTags)")
             } else {
                 print("⚠️  HTML may not contain meta tags for \(urlString)")
-                print("📄 First 500 chars: \(htmlPreview)")
+                if url.host?.contains("x.com") == true || url.host?.contains("twitter.com") == true {
+                    print("📄 X.com response (first 800 chars): \(htmlPreview)")
+                }
             }
 
             let ogData = parseOpenGraph(from: html, url: urlString)
@@ -79,6 +103,67 @@ class OpenGraphService {
             print("❌ Failed to fetch OpenGraph data for \(urlString): \(error)")
             return nil
         }
+    }
+
+    private func fetchTwitterMetadata(for url: URL) async -> OpenGraphData? {
+        print("🐦 Fetching Twitter metadata with Twitterbot UA: \(url)")
+
+        // Create a custom URLSession with Twitterbot User-Agent
+        // Twitter serves full HTML with meta tags when it sees Twitterbot
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 15
+        config.httpAdditionalHeaders = [
+            "User-Agent": "Twitterbot/1.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br"
+        ]
+        let twitterSession = URLSession(configuration: config)
+
+        do {
+            let (data, response) = try await twitterSession.data(from: url)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("   ❌ Not an HTTP response")
+                return nil
+            }
+
+            print("   📡 HTTP status: \(httpResponse.statusCode)")
+
+            guard httpResponse.statusCode == 200 else {
+                print("   ❌ HTTP \(httpResponse.statusCode)")
+                return nil
+            }
+
+            guard let html = String(data: data, encoding: .utf8) else {
+                print("   ❌ Failed to decode HTML")
+                return nil
+            }
+
+            // Check if we got meta tags
+            let hasTwitterTags = html.contains("twitter:title") || html.contains("twitter:image")
+            let hasOGTags = html.contains("og:title") || html.contains("og:image")
+
+            print("   📄 Got HTML with Twitter tags: \(hasTwitterTags), OG tags: \(hasOGTags)")
+
+            // Parse the HTML for OpenGraph/Twitter card tags
+            let ogData = parseOpenGraph(from: html, url: url.absoluteString)
+
+            if ogData.hasData {
+                print("   ✅ Successfully extracted Twitter metadata")
+                print("      Title: \(ogData.title ?? "none")")
+                print("      Description: \(ogData.description?.prefix(100) ?? "none")")
+                print("      Image: \(ogData.imageURL ?? "none")")
+                return ogData
+            } else {
+                print("   ⚠️  No OpenGraph data found in HTML")
+            }
+        } catch {
+            print("   ❌ Failed to fetch Twitter metadata: \(error)")
+        }
+
+        return nil
     }
 
     private func parseOpenGraph(from html: String, url: String) -> OpenGraphData {
@@ -149,7 +234,13 @@ class OpenGraphService {
                 }
             case "og:image", "og:image:url", "og:image:secure_url":
                 if imageURL == nil {
-                    imageURL = content
+                    // Filter out Twitter profile pictures
+                    let isProfilePic = content.contains("profile_images") || content.contains("_normal")
+                    if !isProfilePic {
+                        imageURL = content
+                    } else {
+                        print("   🚫 Skipping profile picture: \(String(content.prefix(100)))")
+                    }
                 }
             case "og:site_name":
                 if siteName == nil {
@@ -167,7 +258,13 @@ class OpenGraphService {
                 }
             case "twitter:image", "twitter:image:src":
                 if twitterImage == nil {
-                    twitterImage = content
+                    // Filter out Twitter profile pictures
+                    let isProfilePic = content.contains("profile_images") || content.contains("_normal")
+                    if !isProfilePic {
+                        twitterImage = content
+                    } else {
+                        print("   🚫 Skipping profile picture: \(String(content.prefix(100)))")
+                    }
                 }
             case "twitter:site", "twitter:creator":
                 if twitterSite == nil {
