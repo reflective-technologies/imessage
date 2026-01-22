@@ -9,13 +9,16 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationSplitView {
+            List {
+                NavigationLink(destination: LinkListView()) {
+                    Label("All Links", systemImage: "link.circle")
+                }
+            }
+            .navigationTitle("iMessage")
+        } detail: {
+            LinkListView()
         }
-        .padding()
     }
 }
 

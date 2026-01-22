@@ -13,5 +13,15 @@ struct imessageApp: App {
         WindowGroup {
             ContentView()
         }
+        .defaultSize(width: 900, height: 600)
+        .commands {
+            CommandGroup(replacing: .help) {
+                Button("Help") {
+                    if let url = URL(string: "https://support.apple.com/guide/mac-help/control-access-to-files-and-folders-on-mac-mchld5a35146/mac") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+        }
     }
 }
