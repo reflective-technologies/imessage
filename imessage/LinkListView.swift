@@ -34,6 +34,13 @@ struct LinkListView: View {
             if isLoading {
                 ProgressView("Loading messages...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if showPermissionDenied {
+                OnboardingView(
+                    errorMessage: errorMessage,
+                    onGrantAccess: {
+                        selectDatabaseFile()
+                    }
+                )
             } else if let errorMessage = errorMessage {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")
@@ -42,43 +49,24 @@ struct LinkListView: View {
                     Text(errorMessage)
                         .multilineTextAlignment(.center)
                         .padding()
-
-                    if showPermissionDenied {
-                        Text("Grant access to your Messages folder")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        Button("Select Messages Folder") {
-                            selectDatabaseFile()
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Text("Select the folder at:\n~/Library/Messages")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 8)
-                    } else {
-                        Button("Retry") {
-                            loadLinks()
-                        }
+                    Button("Retry") {
+                        loadLinks()
                     }
+                    .buttonStyle(.borderedProminent)
                 }
                 .padding()
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 20) {
+                    LazyVStack(spacing: 0) {
                         ForEach(Array(filteredLinks.enumerated()), id: \.element.id) { index, link in
                             LinkRow(link: link)
-                                .padding(.horizontal, 12)
                                 .onAppear {
                                     loadOpenGraphIfNeeded(for: link, at: index)
                                 }
                         }
                     }
-                    .padding(.vertical, 20)
                 }
-                .background(Color(.windowBackgroundColor))
+                .background(Color(hex: "#23282A"))
                 .searchable(text: $searchText, prompt: "Search links or messages")
                 .overlay {
                     if filteredLinks.isEmpty {
@@ -101,6 +89,11 @@ struct LinkListView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .disabled(isLoading)
+            }
+            ToolbarItem(placement: .automatic) {
+                Button(action: resetPermissions) {
+                    Label("Reset Permissions", systemImage: "xmark.circle")
+                }
             }
             ToolbarItem(placement: .status) {
                 if !isLoading && errorMessage == nil {
@@ -145,11 +138,11 @@ struct LinkListView: View {
                     }
                 }
 
-                // If we couldn't restore a bookmark, show the file picker immediately
+                // If we couldn't restore a bookmark, show onboarding
                 if !bookmarkRestored {
                     DispatchQueue.main.async {
                         showPermissionDenied = true
-                        errorMessage = "No access to iMessage database yet."
+                        errorMessage = nil  // Don't show error on first launch
                     }
                 } else {
                     loadLinks()
@@ -218,13 +211,19 @@ struct LinkListView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.allowsOtherFileTypes = true
-        panel.message = "Select the Messages folder or chat.db file\n(~/Library/Messages)"
+        panel.message = "Select the Messages folder to grant access"
         panel.prompt = "Grant Access"
 
-        // Set the default directory to ~/Library
+        // Set the default directory to ~/Library/Messages
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let libraryDir = homeDir.appendingPathComponent("Library")
-        panel.directoryURL = libraryDir
+        let messagesDir = homeDir.appendingPathComponent("Library/Messages")
+        panel.directoryURL = messagesDir
+
+        // If Messages folder doesn't exist, fall back to Library
+        if !FileManager.default.fileExists(atPath: messagesDir.path) {
+            let libraryDir = homeDir.appendingPathComponent("Library")
+            panel.directoryURL = libraryDir
+        }
 
         panel.begin { response in
             if response == .OK, let selectedURL = panel.url {
@@ -269,6 +268,21 @@ struct LinkListView: View {
         }
     }
 
+    private func resetPermissions() {
+        // Clear the bookmark
+        UserDefaults.standard.removeObject(forKey: "databaseBookmark")
+
+        // Reset state
+        links = []
+        errorMessage = nil
+        showPermissionDenied = true
+        isLoading = false
+        loadedIndices.removeAll()
+        currentLoadingBatch.removeAll()
+
+        print("Permissions reset - returning to onboarding")
+    }
+
     private func loadOpenGraphIfNeeded(for link: ExtractedLink, at index: Int) {
         // Only load if not already loaded and not currently loading
         guard !loadedIndices.contains(index),
@@ -299,6 +313,96 @@ struct LinkListView: View {
     }
 }
 
+
+struct OnboardingView: View {
+    let errorMessage: String?
+    let onGrantAccess: () -> Void
+
+    var body: some View {
+        VStack(spacing: 32) {
+            Spacer()
+
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.1))
+                    .frame(width: 120, height: 120)
+
+                Image(systemName: "message.fill")
+                    .font(.system(size: 56))
+                    .foregroundColor(.blue)
+            }
+
+            // Title and description
+            VStack(spacing: 12) {
+                Text("Access Your iMessages")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.primary)
+
+                Text("Grant access to your Messages folder to view all your shared links in one place.")
+                    .font(.system(size: 16))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 400)
+            }
+
+            // Error message if present
+            if let error = errorMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
+            }
+
+            // Main CTA button
+            VStack(spacing: 12) {
+                Button(action: onGrantAccess) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder.badge.plus")
+                        Text("Grant Access to Messages")
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(minWidth: 240)
+                    .padding(.vertical, 14)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+
+                // Helper text
+                VStack(spacing: 4) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 12))
+                        Text("You'll select the Messages folder at:")
+                    }
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+
+                    Text("~/Library/Messages")
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.separatorColor).opacity(0.2))
+                        .cornerRadius(4)
+                }
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.windowBackgroundColor))
+    }
+}
 
 struct OpenGraphPreviewCard: View {
     let ogData: OpenGraphData

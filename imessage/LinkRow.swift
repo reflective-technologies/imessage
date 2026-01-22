@@ -10,114 +10,116 @@ import SwiftUI
 
 struct LinkRow: View {
     @ObservedObject var link: ExtractedLink
-    @State private var isHovering = false
-
-    private var shouldShowMessageText: Bool {
-        guard let messageText = link.message.text else { return false }
-
-        // Trim whitespace and newlines
-        let trimmedMessage = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let urlString = link.url.absoluteString
-
-        // Check if the message is just the URL
-        if trimmedMessage == urlString {
-            return false
-        }
-
-        // Check if the message is the URL without protocol
-        if let urlWithoutProtocol = urlString.components(separatedBy: "://").last,
-           trimmedMessage == urlWithoutProtocol {
-            return false
-        }
-
-        // Check if the message is the URL with trailing slash differences
-        if trimmedMessage.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == urlString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) {
-            return false
-        }
-
-        return true
-    }
-
+    @State private var isHovered = false
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // OpenGraph preview card
-            if let ogData = link.openGraphData, ogData.hasData {
-                OpenGraphPreviewCard(ogData: ogData, url: link.url)
-            } else if link.isLoadingOpenGraph {
-                LinkPreviewPlaceholder()
-            } else {
-                SimpleLinkView(link: link)
-            }
-
-            // Separator between preview and context
-            Divider()
-                .opacity(0.08)
-
-            // Message context and metadata
-            let vStackSpacing: CGFloat = shouldShowMessageText ? 12 : 0
-            let topPadding: CGFloat = shouldShowMessageText ? 2 : 0
-            let containerPadding: EdgeInsets = shouldShowMessageText
-                ? EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14)
-                : EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
-
-            VStack(alignment: .leading, spacing: vStackSpacing) {
-                // Message context - only show if it's more than just the URL
-                if shouldShowMessageText, let messageText = link.message.text {
-                    Text(messageText)
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
+        HStack(alignment: .top, spacing: 12) {
+            // Left side - Text content
+            VStack(alignment: .leading, spacing: 8) {
+                // Title
+                Text(link.displayTitle)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                
+                // Description
+                if let description = link.openGraphData?.description, !description.isEmpty {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
                         .lineLimit(3)
                 }
-
-                // Metadata footer
-                HStack(spacing: 10) {
-                    Image(systemName: link.message.isFromMe ? "person.fill" : "person.circle.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .accessibilityHidden(true)
-
+                
+                // Metadata row
+                HStack(spacing: 6) {
+                    // Sender avatar and name
+                    ContactAvatarView(
+                        name: link.displayContactName,
+                        profileImage: nil,
+                        size: 20
+                    )
+                    
                     Text(link.displayContactName)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.primary)
-
-                    Text("•")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
-
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                    
+                    Text("·")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    // Domain
+                    Text((link.url.host ?? "").uppercased())
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.gray)
+                    
+                    Text("·")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    // Time
                     Text(link.message.date, style: .relative)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.blue)
-                        .opacity(0.8)
+                        .font(.caption)
+                        .foregroundColor(.gray)
                 }
-                .padding(.top, topPadding)
             }
-            .padding(containerPadding)
-            .background(
-                Color(.textBackgroundColor)
-                    .opacity(0.9)
-            )
+            
+            Spacer()
+            
+            // Right side - OG image
+            if let imageURLString = link.openGraphData?.imageURL,
+               let imageURL = URL(string: imageURLString) {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 100, height: 100)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 100, height: 100)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    case .failure:
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 100, height: 100)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .foregroundColor(.gray)
+                            )
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            } else if link.isLoadingOpenGraph {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 100, height: 100)
+                    .overlay(
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    )
+            }
         }
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.controlBackgroundColor))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(isHovered ? 0.1 : 0))
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(.separatorColor).opacity(isHovering ? 0.35 : 0.25), lineWidth: 1)
-        )
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(isHovering ? 0.12 : 0.08), radius: isHovering ? 10 : 8, x: 0, y: 2)
         .contentShape(Rectangle())
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.12)) {
-                isHovering = hovering
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
             }
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(isHovered ? 0 : 0.1))
+                .frame(height: 1)
         }
         .contextMenu {
             Button(action: {
@@ -159,7 +161,7 @@ private extension Message {
         date: Date().addingTimeInterval(-7200),
         isFromMe: false,
         chatIdentifier: "iMessage;+15557654321",
-        contactName: "Taylor"
+        contactName: "Taylor Swift"
     )
 }
 
@@ -177,8 +179,8 @@ private extension ExtractedLink {
             message: .sampleFromMe
         )
         link.openGraphData = OpenGraphData(
-            title: "WWDC",
-            description: "Join developers worldwide for an exciting week of technology and community.",
+            title: "WWDC - Apple Developer Conference",
+            description: "Join developers worldwide for an exciting week of technology and community. Learn about the latest Apple technologies.",
             imageURL: "https://devimages.apple.com.edgekey.net/assets/elements/icons/wwdc/wwdc-128x128_2x.png",
             siteName: "Apple Developer",
             url: "https://developer.apple.com/wwdc"
@@ -199,22 +201,11 @@ private extension ExtractedLink {
 // MARK: - Previews
 
 #Preview("Basic") {
-    LinkRow(link: .sampleBasic())
-        .padding()
-        .frame(maxWidth: 520)
-        .background(Color(.windowBackgroundColor))
-}
-
-#Preview("With OpenGraph") {
-    LinkRow(link: .sampleWithOpenGraph())
-        .padding()
-        .frame(maxWidth: 520)
-        .background(Color(.windowBackgroundColor))
-}
-
-#Preview("Loading") {
-    LinkRow(link: .sampleLoading())
-        .padding()
-        .frame(maxWidth: 520)
-        .background(Color(.windowBackgroundColor))
+    VStack(spacing: 0) {
+        LinkRow(link: .sampleBasic())
+        LinkRow(link: .sampleWithOpenGraph())
+        LinkRow(link: .sampleLoading())
+    }
+    .padding()
+    .background(Color(hex: "#23282A"))
 }
