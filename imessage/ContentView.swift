@@ -9,7 +9,7 @@ import SwiftUI
 import Combine
 
 struct ContentView: View {
-    @State private var selectedCategory: LinkCategory = .all
+    @State private var selectedCategory: LinkCategory = .home
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     
     var body: some View {
@@ -81,6 +81,7 @@ struct SidebarRow: View {
     
     private var categoryColor: Color {
         switch category {
+        case .home: return .blue
         case .all: return .blue
         case .articles: return .orange
         case .videos: return .red
@@ -99,7 +100,7 @@ class LinkStore: ObservableObject {
     @Published var links: [ExtractedLink] = []
     
     func countForCategory(_ category: LinkCategory) -> Int {
-        if category == .all {
+        if category == .home || category == .all {
             return links.count
         }
         return links.filter { link in

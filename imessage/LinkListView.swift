@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 
 // MARK: - Link Category
 enum LinkCategory: String, CaseIterable, Identifiable {
+    case home = "Home"
     case all = "All"
     case articles = "Articles"
     case videos = "Videos"
@@ -23,6 +24,7 @@ enum LinkCategory: String, CaseIterable, Identifiable {
     
     var icon: String {
         switch self {
+        case .home: return "house"
         case .all: return "link"
         case .articles: return "doc.text"
         case .videos: return "play.rectangle"
@@ -31,6 +33,11 @@ enum LinkCategory: String, CaseIterable, Identifiable {
         case .music: return "music.note"
         case .other: return "ellipsis.circle"
         }
+    }
+    
+    /// Categories that represent actual link types (excludes home and all)
+    static var contentCategories: [LinkCategory] {
+        [.articles, .videos, .social, .shopping, .music, .other]
     }
     
     static func categorize(url: URL, openGraphData: OpenGraphData?) -> LinkCategory {
@@ -131,8 +138,8 @@ struct LinkListView: View {
     var filteredLinks: [ExtractedLink] {
         var result = links
         
-        // Filter by category
-        if selectedCategory != .all {
+        // Filter by category (home and all show everything)
+        if selectedCategory != .all && selectedCategory != .home {
             result = result.filter { link in
                 LinkCategory.categorize(url: link.url, openGraphData: link.openGraphData) == selectedCategory
             }
@@ -217,6 +224,9 @@ struct LinkListView: View {
                             .buttonStyle(.borderedProminent)
                         }
                         .padding()
+                    } else if selectedCategory == .home {
+                        // Home view with carousels
+                        HomeView(links: links, selectedCategory: $selectedCategory)
                     } else {
                         VStack(spacing: 0) {
                             // Link list

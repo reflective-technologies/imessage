@@ -116,11 +116,11 @@ struct LinkRow: View {
         .padding(16)
         .frame(maxWidth: 900, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 3)
                 .fill(isSelected ? Color.blue.opacity(0.3) : (isHovered ? Color.white.opacity(0.1) : Color.clear))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 3)
                 .stroke(isSelected ? Color.blue.opacity(0.5) : Color.clear, lineWidth: 2)
         )
         .contentShape(Rectangle())
