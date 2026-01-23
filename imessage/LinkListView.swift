@@ -130,6 +130,7 @@ struct LinkListView: View {
     @State private var errorMessage: String?
     @State private var searchText = ""
     @State private var showPermissionDenied = false
+    @State private var messagesAccessGranted = false
     @State private var loadedIndices = Set<Int>()
     @State private var currentLoadingBatch = Set<Int>()
     @State private var selectedLink: ExtractedLink?
@@ -209,7 +210,12 @@ struct LinkListView: View {
                             errorMessage: errorMessage,
                             onGrantAccess: {
                                 selectDatabaseFile()
-                            }
+                            },
+                            onContinue: {
+                                showPermissionDenied = false
+                                loadLinks()
+                            },
+                            messagesGranted: $messagesAccessGranted
                         )
                     } else if let errorMessage = errorMessage {
                         VStack(spacing: 16) {
@@ -507,9 +513,8 @@ struct LinkListView: View {
                 // Update the service with the new URL (this will start security-scoped access)
                 MessageService.shared.setDatabaseURL(dbURL, folderURL: folderURL)
 
-                // Try loading again
-                showPermissionDenied = false
-                loadLinks()
+                // Mark messages access as granted, but stay on onboarding
+                messagesAccessGranted = true
             }
         }
     }
@@ -629,13 +634,10 @@ struct DateHeaderView: View {
 struct OnboardingView: View {
     let errorMessage: String?
     let onGrantAccess: () -> Void
+    let onContinue: () -> Void
+    @Binding var messagesGranted: Bool
     
-    @State private var messagesGranted = false
     @State private var contactsGranted = false
-    
-    private var allPermissionsGranted: Bool {
-        messagesGranted && contactsGranted
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -655,11 +657,7 @@ struct OnboardingView: View {
                         title: "Messages",
                         description: "Allows this app to read your iMessages locally.",
                         isGranted: messagesGranted,
-                        onRequest: {
-                            onGrantAccess()
-                            // The parent view handles this and will refresh the state
-                            messagesGranted = true
-                        }
+                        onRequest: onGrantAccess
                     )
                     
                     // Contacts permission
@@ -694,6 +692,24 @@ struct OnboardingView: View {
                         .frame(maxWidth: 360)
                 }
                 .padding(.top, 8)
+                
+                // Continue button (only when messages granted)
+                if messagesGranted {
+                    Button(action: onContinue) {
+                        HStack(spacing: 8) {
+                            Text("Continue")
+                            Image(systemName: "arrow.right")
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 8)
+                }
                 
                 // Error message if present
                 if let error = errorMessage {
