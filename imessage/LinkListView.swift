@@ -377,6 +377,11 @@ struct LinkListView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .contactsDidLoad)) { _ in
+            if !links.isEmpty {
+                loadLinks()
+            }
+        }
     }
     
     @ViewBuilder

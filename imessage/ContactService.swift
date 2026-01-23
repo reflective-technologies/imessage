@@ -8,6 +8,10 @@
 import Foundation
 internal import Contacts
 
+extension Notification.Name {
+    static let contactsDidLoad = Notification.Name("contactsDidLoad")
+}
+
 class ContactService {
     static let shared = ContactService()
 
@@ -88,6 +92,10 @@ class ContactService {
 
             isLoaded = true
             print("Loaded \(contactLookup.count) contact mappings")
+            
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .contactsDidLoad, object: nil)
+            }
         } catch {
             print("Failed to fetch contacts: \(error)")
         }
