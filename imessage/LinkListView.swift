@@ -16,7 +16,7 @@ enum LinkCategory: String, CaseIterable, Identifiable {
     case videos = "Videos"
     case social = "Social"
     case shopping = "Shopping"
-    case images = "Images"
+    case music = "Music"
     case other = "Other"
     
     var id: String { rawValue }
@@ -28,7 +28,7 @@ enum LinkCategory: String, CaseIterable, Identifiable {
         case .videos: return "play.rectangle"
         case .social: return "bubble.left.and.bubble.right"
         case .shopping: return "cart"
-        case .images: return "photo"
+        case .music: return "music.note"
         case .other: return "ellipsis.circle"
         }
     }
@@ -58,12 +58,13 @@ enum LinkCategory: String, CaseIterable, Identifiable {
             return .shopping
         }
         
-        // Images
-        let imageHosts = ["imgur.com", "flickr.com", "unsplash.com", "giphy.com", "tenor.com"]
-        let imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"]
-        if imageHosts.contains(where: { host.contains($0) }) ||
-           imageExtensions.contains(where: { path.hasSuffix($0) }) {
-            return .images
+        // Music platforms
+        let musicHosts = ["soundcloud.com", "bandcamp.com", "spotify.com", "open.spotify.com",
+                         "music.apple.com", "itunes.apple.com", "tidal.com", "deezer.com",
+                         "audiomack.com", "mixcloud.com", "last.fm", "pandora.com",
+                         "music.youtube.com", "music.amazon.com"]
+        if musicHosts.contains(where: { host.contains($0) }) {
+            return .music
         }
         
         // Articles - news sites and blogs
@@ -125,6 +126,7 @@ struct LinkListView: View {
     @State private var currentLoadingBatch = Set<Int>()
     @State private var selectedLink: ExtractedLink?
     @State private var groupingMode: GroupingMode = .date
+    @State private var canShowMessagePanel = true
 
     var filteredLinks: [ExtractedLink] {
         var result = links
@@ -185,7 +187,7 @@ struct LinkListView: View {
     var body: some View {
         GeometryReader { geometry in
             // Need at least 400 for link list + 300 for message panel = 700 total
-            let canShowMessagePanel = geometry.size.width >= 700
+            let canShow = geometry.size.width >= 700
             let isCompact = geometry.size.width < 700
             
             HStack(spacing: 0) {
@@ -274,21 +276,33 @@ struct LinkListView: View {
                 .frame(minWidth: isCompact ? nil : 400)
                 
                 // Right side - Message context panel (only show when there's enough room)
-                if canShowMessagePanel, let link = selectedLink {
+                if canShow, let link = selectedLink {
                     Divider()
                         .background(Color.white.opacity(0.2))
                     
                     MessageContextView(link: link)
-                        .frame(minWidth: 375, idealWidth: 400, maxWidth: 500)
+                        .frame(minWidth: 300, idealWidth: 400, maxWidth: 500)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
+            }
+            .onChange(of: canShow) { _, newValue in
+                canShowMessagePanel = newValue
+                // Clear selection when panel can no longer be shown
+                if !newValue && selectedLink != nil {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedLink = nil
+                    }
+                }
+            }
+            .onAppear {
+                canShowMessagePanel = canShow
             }
         }
         .navigationTitle(selectedCategory.rawValue)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 12) {
-                    if selectedLink != nil {
+                    if canShowMessagePanel && selectedLink != nil {
                         Button(action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 selectedLink = nil

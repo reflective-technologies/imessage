@@ -404,7 +404,7 @@ struct LinkPreviewBubble: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isFromMe ? Color.iMessageBlue : Color.iMessageGray)
+            .background(isFromMe ? Color(hex: "#003450") : Color.iMessageGray)
         }
         .frame(width: 260)
         .clipShape(RoundedRectangle(cornerRadius: 16))

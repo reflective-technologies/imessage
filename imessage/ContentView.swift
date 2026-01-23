@@ -86,7 +86,7 @@ struct SidebarRow: View {
         case .videos: return .red
         case .social: return .purple
         case .shopping: return .green
-        case .images: return .pink
+        case .music: return .pink
         case .other: return .gray
         }
     }
