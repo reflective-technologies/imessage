@@ -187,7 +187,7 @@ struct NewLinkRow: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            Rectangle()
                 .fill(Color.white.opacity(isHovered ? 0.1 : 0))
         )
         .contentShape(Rectangle())

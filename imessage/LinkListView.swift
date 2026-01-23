@@ -106,11 +106,11 @@ struct LinkListView: View {
                 }
                 .disabled(isLoading)
             }
-            ToolbarItem(placement: .automatic) {
-                Button(action: resetPermissions) {
-                    Label("Reset Permissions", systemImage: "xmark.circle")
-                }
-            }
+            // ToolbarItem(placement: .automatic) {
+            //     Button(action: resetPermissions) {
+            //         Label("Reset Permissions", systemImage: "xmark.circle")
+            //     }
+            // }
 
         }
         .onAppear {
