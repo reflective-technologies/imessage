@@ -394,6 +394,10 @@ class MessageService {
     private func extractOpenGraphFromPayload(_ payloadData: Data?, for url: URL) -> OpenGraphData? {
         guard let data = payloadData else { return nil }
 
+        // Check if this is a Twitter URL
+        let host = url.host ?? ""
+        let isTwitter = host.contains("x.com") || host.contains("twitter.com")
+
         do {
             // Decode the NSKeyedArchiver plist
             let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
@@ -403,38 +407,78 @@ class MessageService {
             }
 
             // Find the metadata dictionary that contains title, summary, siteName keys
-            var metadataDict: [String: Any]?
             var titleUID: Int?
             var summaryUID: Int?
             var siteNameUID: Int?
+            var iconUID: Int?
+            var imageUID: Int?
+
+            // Helper function to extract UID from CFKeyedArchiverUID or dictionary
+            func extractUID(from value: Any?) -> Int? {
+                guard let value = value else { return nil }
+                // Try as dictionary with CF$UID key
+                if let dict = value as? [String: Any], let uid = dict["CF$UID"] as? Int {
+                    return uid
+                }
+                // Try as NSNumber (CFKeyedArchiverUID bridges to this sometimes)
+                if let num = value as? NSNumber {
+                    return num.intValue
+                }
+                // For CFKeyedArchiverUID (__NSCFType), parse the value from description
+                // Description format: "<CFKeyedArchiverUID 0x...>{value = 8}"
+                let desc = String(describing: value)
+                if desc.contains("CFKeyedArchiverUID") {
+                    if let range = desc.range(of: "value = "),
+                       let endRange = desc.range(of: "}", range: range.upperBound..<desc.endIndex) {
+                        let valueStr = desc[range.upperBound..<endRange.lowerBound]
+                        return Int(valueStr.trimmingCharacters(in: .whitespaces))
+                    }
+                }
+                return nil
+            }
 
             for object in objects {
                 if let dict = object as? [String: Any] {
-                    if dict.keys.contains("title") && dict.keys.contains("summary") && dict.keys.contains("siteName") {
-                        metadataDict = dict
+                    if dict.keys.contains("title") && dict.keys.contains("siteName") {
+                        // Extract UIDs for basic fields using our helper
+                        titleUID = extractUID(from: dict["title"])
+                        summaryUID = extractUID(from: dict["summary"])
+                        siteNameUID = extractUID(from: dict["siteName"])
+                        iconUID = extractUID(from: dict["icon"])
+                        imageUID = extractUID(from: dict["image"])
 
-                        // Extract UIDs
-                        if let titleRef = dict["title"] as? [String: Any],
-                           let uid = titleRef["CF$UID"] as? Int {
-                            titleUID = uid
-                        }
-                        if let summaryRef = dict["summary"] as? [String: Any],
-                           let uid = summaryRef["CF$UID"] as? Int {
-                            summaryUID = uid
-                        }
-                        if let siteNameRef = dict["siteName"] as? [String: Any],
-                           let uid = siteNameRef["CF$UID"] as? Int {
-                            siteNameUID = uid
-                        }
                         break
                     }
                 }
             }
 
-            // Now extract the actual strings using the UIDs
+            // Helper to extract URL string from a metadata object chain
+            func extractURLString(fromUID uid: Int?) -> String? {
+                guard let uid = uid, uid < objects.count else { return nil }
+
+                // The UID points to a metadata dict which has a URL field
+                if let metaDict = objects[uid] as? [String: Any] {
+                    // Get URL UID using our extractUID helper
+                    if let urlUID = extractUID(from: metaDict["URL"]),
+                       urlUID < objects.count {
+                        // URL UID points to an NSURL dict with NS.relative
+                        if let urlDict = objects[urlUID] as? [String: Any] {
+                            if let relativeUID = extractUID(from: urlDict["NS.relative"]),
+                               relativeUID < objects.count {
+                                return objects[relativeUID] as? String
+                            }
+                        }
+                    }
+                }
+                return nil
+            }
+
+            // Extract the actual strings using the UIDs
             var title: String?
             var summary: String?
             var siteName: String?
+            var iconURL: String?
+            var imageURL: String?
 
             if let titleUID = titleUID, titleUID < objects.count {
                 title = objects[titleUID] as? String
@@ -446,12 +490,61 @@ class MessageService {
                 siteName = objects[siteNameUID] as? String
             }
 
+            // Extract icon and image URLs
+            iconURL = extractURLString(fromUID: iconUID)
+            imageURL = extractURLString(fromUID: imageUID)
+
+            // If icon URL not found via metadata, scan for profile image URLs directly
+            if iconURL == nil && isTwitter {
+                for obj in objects {
+                    if let str = obj as? String,
+                       str.contains("pbs.twimg.com/profile_images") {
+                        iconURL = str
+                        break
+                    }
+                }
+            }
+
+            // If media image URL not found, scan for tweet media URLs
+            if imageURL == nil && isTwitter {
+                for obj in objects {
+                    if let str = obj as? String,
+                       (str.contains("pbs.twimg.com/media") ||
+                        str.contains("pbs.twimg.com/ext_tw_video_thumb") ||
+                        str.contains("pbs.twimg.com/tweet_video_thumb")),
+                       !str.contains("profile_images") {
+                        imageURL = str
+                        break
+                    }
+                }
+            }
+
+            // Check if this is a Twitter URL (reuse host from debug section above)
+            let isTwitterURL = isTwitter
+
             // Only return if we found at least a title
             if let title = title, !title.isEmpty {
+                // For Twitter, parse the title to extract author info and engagement
+                if isTwitterURL || siteName == "X (formerly Twitter)" {
+                    let parsed = parseTwitterTitle(title)
+                    return OpenGraphData(
+                        title: title,
+                        description: summary,
+                        imageURL: imageURL,
+                        siteName: siteName,
+                        url: url.absoluteString,
+                        twitterAuthorName: parsed.authorName,
+                        twitterHandle: parsed.handle,
+                        twitterLikes: parsed.likes,
+                        twitterReplies: parsed.replies,
+                        twitterProfileImageURL: iconURL
+                    )
+                }
+
                 return OpenGraphData(
                     title: title,
                     description: summary,
-                    imageURL: nil, // We could extract image URL too but it's complex
+                    imageURL: imageURL,
                     siteName: siteName,
                     url: url.absoluteString
                 )
@@ -463,5 +556,55 @@ class MessageService {
         }
 
         return nil
+    }
+
+    /// Parses Twitter title format: "Author Name (@handle)\n11K likes · 2K replies"
+    private func parseTwitterTitle(_ title: String) -> (authorName: String?, handle: String?, likes: String?, replies: String?) {
+        var authorName: String?
+        var handle: String?
+        var likes: String?
+        var replies: String?
+
+        let lines = title.components(separatedBy: "\n")
+
+        // First line: "Author Name (@handle)"
+        if let firstLine = lines.first {
+            // Extract handle using regex
+            if let handleMatch = firstLine.range(of: #"\(@(\w+)\)"#, options: .regularExpression) {
+                let fullMatch = String(firstLine[handleMatch])
+                // Remove parentheses to get @handle
+                handle = String(fullMatch.dropFirst().dropLast())
+
+                // Author name is everything before the handle
+                let beforeHandle = firstLine[..<handleMatch.lowerBound].trimmingCharacters(in: .whitespaces)
+                if !beforeHandle.isEmpty {
+                    authorName = beforeHandle
+                }
+            }
+        }
+
+        // Second line: "11K likes · 2K replies"
+        if lines.count > 1 {
+            let engagementLine = lines[1]
+
+            // Extract likes
+            if let likesMatch = engagementLine.range(of: #"([\d.]+[KMB]?)\s*likes?"#, options: .regularExpression) {
+                let match = String(engagementLine[likesMatch])
+                // Extract just the number part
+                if let numMatch = match.range(of: #"[\d.]+[KMB]?"#, options: .regularExpression) {
+                    likes = String(match[numMatch])
+                }
+            }
+
+            // Extract replies
+            if let repliesMatch = engagementLine.range(of: #"([\d.]+[KMB]?)\s*repl"#, options: .regularExpression) {
+                let match = String(engagementLine[repliesMatch])
+                if let numMatch = match.range(of: #"[\d.]+[KMB]?"#, options: .regularExpression) {
+                    replies = String(match[numMatch])
+                }
+            }
+        }
+
+        return (authorName, handle, likes, replies)
     }
 }

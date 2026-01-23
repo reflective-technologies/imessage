@@ -83,11 +83,178 @@ extension NSImage {
 struct HomeLinkCard: View {
     @ObservedObject var link: ExtractedLink
     @State private var dominantColor: Color = Color(hex: "#2B2E30")
-    
+
     private let cardWidth: CGFloat = 320
     private let cardHeight: CGFloat = 280
-    
+
+    private var isTwitterLink: Bool {
+        let host = link.url.host ?? ""
+        return host.contains("x.com") || host.contains("twitter.com")
+    }
+
     var body: some View {
+        Group {
+            if isTwitterLink, let ogData = link.openGraphData {
+                twitterCardView(ogData: ogData)
+            } else {
+                regularCardView
+            }
+        }
+        .frame(width: cardWidth, height: cardHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+        .onTapGesture {
+            NSWorkspace.shared.open(link.url)
+        }
+        .onAppear {
+            link.loadOpenGraphData()
+        }
+    }
+
+    // MARK: - Twitter Card View
+    @ViewBuilder
+    private func twitterCardView(ogData: OpenGraphData) -> some View {
+        ZStack(alignment: .bottom) {
+            // Background - media image or dark gray
+            if let imageURLString = ogData.imageURL,
+               let imageURL = URL(string: imageURLString) {
+                CachedAsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: cardWidth, height: cardHeight)
+                            .clipped()
+                    default:
+                        Rectangle()
+                            .fill(Color(hex: "#1C1C1E"))
+                    }
+                } onImageLoaded: { nsImage in
+                    dominantColor = nsImage.dominantColor()
+                }
+            } else {
+                Rectangle()
+                    .fill(Color(hex: "#1C1C1E"))
+            }
+
+            // Gradient overlay for text readability
+            VStack(spacing: 0) {
+                Spacer()
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: Color.black.opacity(0.7), location: 0.3),
+                        .init(color: Color.black.opacity(0.95), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: cardHeight * 0.7)
+            }
+
+            // Content
+            VStack(alignment: .leading, spacing: 8) {
+                Spacer()
+
+                // Tweet text
+                if let description = ogData.description, !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                        .lineLimit(4)
+                        .multilineTextAlignment(.leading)
+                }
+
+                // Author row with profile pic
+                HStack(spacing: 6) {
+                    if let profileURL = ogData.twitterProfileImageURL,
+                       let imageURL = URL(string: profileURL) {
+                        CachedAsyncImage(url: imageURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 18, height: 18)
+                                    .clipShape(Circle())
+                            default:
+                                Circle()
+                                    .fill(Color.gray.opacity(0.3))
+                                    .frame(width: 18, height: 18)
+                            }
+                        }
+                    }
+
+                    // Author name and handle
+                    if let authorName = ogData.twitterAuthorName {
+                        Text(authorName)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+
+                    if let handle = ogData.twitterHandle {
+                        Text(handle)
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+
+                // Engagement stats row
+                HStack(spacing: 12) {
+                    if let likes = ogData.twitterLikes {
+                        HStack(spacing: 3) {
+                            Image(systemName: "heart")
+                                .font(.system(size: 10))
+                            Text("\(likes)")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                    }
+
+                    if let replies = ogData.twitterReplies {
+                        HStack(spacing: 3) {
+                            Image(systemName: "bubble.right")
+                                .font(.system(size: 10))
+                            Text("\(replies)")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                    }
+
+                    Spacer()
+
+                    Text("x.com")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.5))
+                }
+
+                // Sender row
+                HStack(spacing: 6) {
+                    ContactAvatarView(
+                        name: link.displayContactName,
+                        profileImage: link.contactPhoto,
+                        size: 16
+                    )
+
+                    Text(link.displayContactName)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.7))
+                        .lineLimit(1)
+                }
+                .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+        }
+    }
+
+    // MARK: - Regular Card View
+    private var regularCardView: some View {
         ZStack(alignment: .bottom) {
             // Background image
             if let imageURLString = link.openGraphData?.imageURL,
@@ -122,11 +289,11 @@ struct HomeLinkCard: View {
                 Rectangle()
                     .fill(Color(hex: "#2B2E30"))
             }
-            
+
             // Gradient overlay
             VStack(spacing: 0) {
                 Spacer()
-                
+
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0),
@@ -139,11 +306,11 @@ struct HomeLinkCard: View {
                 )
                 .frame(height: cardHeight * 0.6)
             }
-            
+
             // Content overlay
             VStack(alignment: .leading, spacing: 8) {
                 Spacer()
-                
+
                 // Title
                 Text(link.displayTitle)
                     .font(.system(size: 18, weight: .bold))
@@ -151,7 +318,7 @@ struct HomeLinkCard: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                
+
                 // Sender and domain row
                 HStack(spacing: 8) {
                     // Sender avatar and name
@@ -160,21 +327,21 @@ struct HomeLinkCard: View {
                         profileImage: link.contactPhoto,
                         size: 20
                     )
-                    
+
                     Text(link.displayContactName)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.9))
                         .lineLimit(1)
-                    
+
                     Text("·")
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.6))
-                    
+
                     // Domain
                     Image(systemName: "globe")
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.7))
-                    
+
                     Text((link.url.host ?? "").uppercased())
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.white.opacity(0.7))
@@ -183,19 +350,6 @@ struct HomeLinkCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-        }
-        .frame(width: cardWidth, height: cardHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-        .onTapGesture {
-            NSWorkspace.shared.open(link.url)
-        }
-        .onAppear {
-            link.loadOpenGraphData()
         }
     }
 }

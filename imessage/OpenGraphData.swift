@@ -14,7 +14,47 @@ struct OpenGraphData: Codable {
     let siteName: String?
     let url: String?
 
+    // Twitter-specific fields (from iMessage cache)
+    let twitterAuthorName: String?
+    let twitterHandle: String?
+    let twitterLikes: String?
+    let twitterReplies: String?
+    let twitterProfileImageURL: String?
+
     var hasData: Bool {
         title != nil || description != nil || imageURL != nil
+    }
+
+    var isTwitter: Bool {
+        twitterHandle != nil || siteName == "X (formerly Twitter)"
+    }
+
+    // Convenience initializer for non-Twitter content
+    init(title: String?, description: String?, imageURL: String?, siteName: String?, url: String?) {
+        self.title = title
+        self.description = description
+        self.imageURL = imageURL
+        self.siteName = siteName
+        self.url = url
+        self.twitterAuthorName = nil
+        self.twitterHandle = nil
+        self.twitterLikes = nil
+        self.twitterReplies = nil
+        self.twitterProfileImageURL = nil
+    }
+
+    // Full initializer with Twitter fields
+    init(title: String?, description: String?, imageURL: String?, siteName: String?, url: String?,
+         twitterAuthorName: String?, twitterHandle: String?, twitterLikes: String?, twitterReplies: String?, twitterProfileImageURL: String?) {
+        self.title = title
+        self.description = description
+        self.imageURL = imageURL
+        self.siteName = siteName
+        self.url = url
+        self.twitterAuthorName = twitterAuthorName
+        self.twitterHandle = twitterHandle
+        self.twitterLikes = twitterLikes
+        self.twitterReplies = twitterReplies
+        self.twitterProfileImageURL = twitterProfileImageURL
     }
 }
