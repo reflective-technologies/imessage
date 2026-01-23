@@ -184,6 +184,8 @@ struct LinkListView: View {
     
     var body: some View {
         GeometryReader { geometry in
+            // Need at least 400 for link list + 300 for message panel = 700 total
+            let canShowMessagePanel = geometry.size.width >= 700
             let isCompact = geometry.size.width < 700
             
             HStack(spacing: 0) {
@@ -223,7 +225,7 @@ struct LinkListView: View {
                                         ForEach(groupedByDate, id: \.key) { group in
                                             Section {
                                                 ForEach(group.links) { link in
-                                                    linkRow(for: link, isCompact: isCompact)
+                                                    linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
                                                 }
                                             } header: {
                                                 DateHeaderView(date: group.key)
@@ -233,7 +235,7 @@ struct LinkListView: View {
                                         ForEach(groupedByDomain, id: \.key) { group in
                                             Section {
                                                 ForEach(group.links) { link in
-                                                    linkRow(for: link, isCompact: isCompact)
+                                                    linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
                                                 }
                                             } header: {
                                                 GroupHeaderView(title: group.key, count: group.links.count, icon: "globe")
@@ -243,7 +245,7 @@ struct LinkListView: View {
                                         ForEach(groupedByContact, id: \.key) { group in
                                             Section {
                                                 ForEach(group.links) { link in
-                                                    linkRow(for: link, isCompact: isCompact)
+                                                    linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
                                                 }
                                             } header: {
                                                 GroupHeaderView(title: group.key, count: group.links.count, icon: "person.fill")
@@ -271,13 +273,13 @@ struct LinkListView: View {
                 }
                 .frame(minWidth: isCompact ? nil : 400)
                 
-                // Right side - Message context panel (only show on wider viewports)
-                if !isCompact, let link = selectedLink {
+                // Right side - Message context panel (only show when there's enough room)
+                if canShowMessagePanel, let link = selectedLink {
                     Divider()
                         .background(Color.white.opacity(0.2))
                     
                     MessageContextView(link: link)
-                        .frame(minWidth: 350, idealWidth: 400, maxWidth: 500)
+                        .frame(minWidth: 375, idealWidth: 400, maxWidth: 500)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
@@ -285,10 +287,17 @@ struct LinkListView: View {
         .navigationTitle(selectedCategory.rawValue)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: loadLinks) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                HStack(spacing: 12) {
+                    if selectedLink != nil {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedLink = nil
+                            }
+                        }) {
+                            Label("Close Context", systemImage: "xmark")
+                        }
+                    }
                 }
-                .disabled(isLoading)
             }
         }
         .onAppear {
@@ -340,10 +349,10 @@ struct LinkListView: View {
     }
     
     @ViewBuilder
-    private func linkRow(for link: ExtractedLink, isCompact: Bool) -> some View {
+    private func linkRow(for link: ExtractedLink, canShowMessagePanel: Bool) -> some View {
         LinkRow(
             link: link,
-            isSelected: !isCompact && selectedLink?.id == link.id,
+            isSelected: canShowMessagePanel && selectedLink?.id == link.id,
             onSelect: {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     if selectedLink?.id == link.id {

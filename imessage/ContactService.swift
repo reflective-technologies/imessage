@@ -13,6 +13,7 @@ class ContactService {
 
     private let contactStore = CNContactStore()
     private var contactLookup: [String: String] = [:]
+    private var contactPhotoLookup: [String: Data] = [:]
     private var isLoaded = false
 
     private init() {
@@ -31,7 +32,13 @@ class ContactService {
     }
 
     private func loadAllContacts() {
-        let keysToFetch = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey, CNContactEmailAddressesKey] as [CNKeyDescriptor]
+        let keysToFetch = [
+            CNContactGivenNameKey,
+            CNContactFamilyNameKey,
+            CNContactPhoneNumbersKey,
+            CNContactEmailAddressesKey,
+            CNContactThumbnailImageDataKey
+        ] as [CNKeyDescriptor]
 
         do {
             let contacts = try contactStore.unifiedContacts(matching: NSPredicate(value: true), keysToFetch: keysToFetch)
@@ -39,6 +46,7 @@ class ContactService {
 
             for contact in contacts {
                 let name = formatContactName(contact)
+                let photoData = contact.thumbnailImageData
 
                 // Map all phone numbers to this contact
                 for phoneNumber in contact.phoneNumbers {
@@ -47,12 +55,21 @@ class ContactService {
 
                     contactLookup[number] = name
                     contactLookup[cleanNumber] = name
+                    
+                    if let photo = photoData {
+                        contactPhotoLookup[number] = photo
+                        contactPhotoLookup[cleanNumber] = photo
+                    }
                 }
 
                 // Map all email addresses to this contact
                 for email in contact.emailAddresses {
                     let emailString = (email.value as String).lowercased()
                     contactLookup[emailString] = name
+                    
+                    if let photo = photoData {
+                        contactPhotoLookup[emailString] = photo
+                    }
                 }
             }
 
@@ -143,6 +160,33 @@ class ContactService {
             return name
         }
 
+        return nil
+    }
+    
+    func getContactPhoto(for identifier: String?) -> Data? {
+        guard let identifier = identifier, !identifier.isEmpty else { return nil }
+        
+        // Skip group chats
+        if identifier.hasPrefix("chat") {
+            return nil
+        }
+        
+        // Try exact match first
+        if let photo = contactPhotoLookup[identifier] {
+            return photo
+        }
+        
+        // Try lowercase for emails
+        if let photo = contactPhotoLookup[identifier.lowercased()] {
+            return photo
+        }
+        
+        // Try cleaned phone number
+        let cleanIdentifier = cleanPhoneNumber(identifier)
+        if let photo = contactPhotoLookup[cleanIdentifier] {
+            return photo
+        }
+        
         return nil
     }
 

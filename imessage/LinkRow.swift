@@ -44,7 +44,7 @@ struct LinkRow: View {
                     // Sender avatar and name
                     ContactAvatarView(
                         name: link.displayContactName,
-                        profileImage: nil,
+                        profileImage: link.contactPhoto,
                         size: 20
                     )
                     

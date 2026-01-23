@@ -48,14 +48,19 @@ struct MessageContextView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Message Context")
+                // Contact photo and name
+                HStack(spacing: 10) {
+                    ContactAvatarView(
+                        name: link.displayContactName,
+                        profileImage: link.contactPhoto,
+                        size: 32
+                    )
+                    
+                    Text(link.displayContactName)
                         .font(.headline)
                         .foregroundColor(.white)
-                    Text(link.displayContactName)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
                 }
+                
                 Spacer()
                 
                 // Open link button
@@ -143,7 +148,7 @@ struct RealMessageListView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 2) {
+                LazyVStack(spacing: 3) {
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                         VStack(spacing: 4) {
                             // Show timestamp if needed
@@ -269,8 +274,8 @@ struct RealMessageBubbleView: View {
                     .overlay(
                         // Highlight ring for the message containing the link
                         RoundedRectangle(cornerRadius: 17)
-                            .stroke(Color.yellow, lineWidth: isHighlighted ? 2 : 0)
-                            .padding(-2)
+                            .stroke(Color.yellow, lineWidth: isHighlighted ? 1 : 0)
+                            .padding(-1)
                     )
                 }
             }

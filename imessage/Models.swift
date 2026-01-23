@@ -48,6 +48,10 @@ class ExtractedLink: Identifiable, ObservableObject {
             return "Unknown"
         }
     }
+    
+    var contactPhoto: Data? {
+        ContactService.shared.getContactPhoto(for: message.chatIdentifier)
+    }
 
     func loadOpenGraphData() {
         guard openGraphData == nil, !isLoadingOpenGraph else { return }
