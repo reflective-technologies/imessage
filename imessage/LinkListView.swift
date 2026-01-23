@@ -32,13 +32,18 @@ enum LinkCategory: String, CaseIterable, Identifiable {
         case .social: return "bubble.left.and.bubble.right"
         case .shopping: return "cart"
         case .music: return "music.note"
-        case .other: return "ellipsis.circle"
+        case .other: return "archivebox"
         }
     }
     
     /// Categories that represent actual link types (excludes home and all)
     static var contentCategories: [LinkCategory] {
         [.articles, .videos, .social, .shopping, .music, .other]
+    }
+    
+    /// Categories shown in the sidebar (excludes all)
+    static var sidebarCategories: [LinkCategory] {
+        [.home, .articles, .videos, .social, .shopping, .music, .other]
     }
     
     static func categorize(url: URL, openGraphData: OpenGraphData?) -> LinkCategory {
@@ -141,7 +146,7 @@ struct LinkListView: View {
         var result = links
         
         // Filter by category (home and all show everything)
-        if selectedCategory != .all && selectedCategory != .home {
+        if selectedCategory != .home {
             result = result.filter { link in
                 LinkCategory.categorize(url: link.url, openGraphData: link.openGraphData) == selectedCategory
             }
@@ -690,7 +695,7 @@ struct OnboardingView: View {
                             .foregroundColor(.primary)
                     }
                     
-                    Text("We never upload, store, or have access to your messages. Everything is processed locally on your Mac.")
+                    Text("This app process all data locally and does not provide access to any third parties.")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -983,6 +988,6 @@ struct SimpleLinkView: View {
 }
 
 #Preview {
-    @Previewable @State var category: LinkCategory = .all
+    @Previewable @State var category: LinkCategory = .home
     LinkListView(selectedCategory: $category)
 }

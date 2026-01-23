@@ -30,7 +30,7 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selectedCategory) {
             Section {
-                ForEach(LinkCategory.allCases) { category in
+                ForEach(LinkCategory.sidebarCategories) { category in
                     SidebarRow(
                         category: category,
                         count: linkStore.countForCategory(category),
@@ -67,7 +67,7 @@ struct SidebarRow: View {
             
             Spacer()
             
-            if count > 0 && category != .all {
+            if count > 0 && category != .home {
                 Text("\(count)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
@@ -100,7 +100,7 @@ class LinkStore: ObservableObject {
     @Published var links: [ExtractedLink] = []
     
     func countForCategory(_ category: LinkCategory) -> Int {
-        if category == .home || category == .all {
+        if category == .home {
             return links.count
         }
         return links.filter { link in

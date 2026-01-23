@@ -8,11 +8,25 @@
 import SwiftUI
 internal import Contacts
 
+// MARK: - View Mode
+enum HomeViewMode: String, CaseIterable {
+    case cards = "Cards"
+    case list = "List"
+    
+    var icon: String {
+        switch self {
+        case .cards: return "square.grid.2x2"
+        case .list: return "list.bullet"
+        }
+    }
+}
+
 // MARK: - Home View
 struct HomeView: View {
     let links: [ExtractedLink]
     @Binding var selectedCategory: LinkCategory
     @State private var contactsAuthStatus: CNAuthorizationStatus = ContactService.shared.authorizationStatus
+    @State private var viewMode: HomeViewMode = .cards
     
     /// Recent links sorted by date (most recent first)
     private var recentLinks: [ExtractedLink] {
@@ -20,48 +34,68 @@ struct HomeView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
-                // Contacts permission banner (if not authorized)
-                if contactsAuthStatus != .authorized {
-                    ContactsPermissionBanner(
-                        status: contactsAuthStatus,
-                        onRequestAccess: {
-                            ContactService.shared.requestAccess { granted in
-                                contactsAuthStatus = ContactService.shared.authorizationStatus
+        Group {
+            if viewMode == .cards {
+                // Card carousel view
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 32) {
+                        // Contacts permission banner (if not authorized)
+                        if contactsAuthStatus != .authorized {
+                            ContactsPermissionBanner(
+                                status: contactsAuthStatus,
+                                onRequestAccess: {
+                                    ContactService.shared.requestAccess { granted in
+                                        contactsAuthStatus = ContactService.shared.authorizationStatus
+                                    }
+                                }
+                            )
+                            .padding(.horizontal, 24)
+                        }
+                        
+                        // Recent section at the top
+                        if !recentLinks.isEmpty {
+                            RecentCarouselSection(
+                                links: recentLinks,
+                                onSeeAll: {
+                                    viewMode = .list
+                                }
+                            )
+                        }
+                        
+                        // Category sections
+                        ForEach(LinkCategory.contentCategories) { category in
+                            let categoryLinks = linksForCategory(category)
+                            if !categoryLinks.isEmpty {
+                                CategoryCarouselSection(
+                                    category: category,
+                                    links: categoryLinks,
+                                    onSeeAll: {
+                                        selectedCategory = category
+                                    }
+                                )
                             }
                         }
-                    )
-                    .padding(.horizontal, 24)
-                }
-                
-                // Recent section at the top
-                if !recentLinks.isEmpty {
-                    RecentCarouselSection(
-                        links: recentLinks,
-                        onSeeAll: {
-                            selectedCategory = .all
-                        }
-                    )
-                }
-                
-                // Category sections
-                ForEach(LinkCategory.contentCategories) { category in
-                    let categoryLinks = linksForCategory(category)
-                    if !categoryLinks.isEmpty {
-                        CategoryCarouselSection(
-                            category: category,
-                            links: categoryLinks,
-                            onSeeAll: {
-                                selectedCategory = category
-                            }
-                        )
                     }
+                    .padding(.vertical, 24)
                 }
+            } else {
+                // List view - show all links with date grouping
+                HomeListView(links: recentLinks, contactsAuthStatus: $contactsAuthStatus)
             }
-            .padding(.vertical, 24)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Picker("View", selection: $viewMode) {
+                    ForEach(HomeViewMode.allCases, id: \.self) { mode in
+                        Image(systemName: mode.icon)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 100)
+            }
+        }
     }
     
     private func linksForCategory(_ category: LinkCategory) -> [ExtractedLink] {
@@ -194,6 +228,100 @@ struct CategoryCarouselSection: View {
 }
 
 // MARK: - Link Card (Carousel Item)
+
+// MARK: - Home List View (All links in list format)
+struct HomeListView: View {
+    let links: [ExtractedLink]
+    @Binding var contactsAuthStatus: CNAuthorizationStatus
+    
+    private var groupedByDate: [(key: Date, links: [ExtractedLink])] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: links) { link in
+            calendar.startOfDay(for: link.message.date)
+        }
+        return grouped.sorted { $0.key > $1.key }.map { (key: $0.key, links: $0.value) }
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                // Contacts permission banner (if not authorized)
+                if contactsAuthStatus != .authorized {
+                    ContactsPermissionBanner(
+                        status: contactsAuthStatus,
+                        onRequestAccess: {
+                            ContactService.shared.requestAccess { granted in
+                                contactsAuthStatus = ContactService.shared.authorizationStatus
+                            }
+                        }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                }
+                
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    ForEach(groupedByDate, id: \.key) { group in
+                        Section {
+                            ForEach(group.links) { link in
+                                LinkRow(
+                                    link: link,
+                                    isSelected: false,
+                                    onSelect: {
+                                        NSWorkspace.shared.open(link.url)
+                                    }
+                                )
+                            }
+                        } header: {
+                            HomeDateHeaderView(date: group.key)
+                        }
+                    }
+                }
+            }
+        }
+        .background(Color(hex: "#23282A"))
+    }
+}
+
+// MARK: - Home Date Header View
+struct HomeDateHeaderView: View {
+    let date: Date
+    
+    private var displayText: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
+            // This week - show day name
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: date)
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            // This year - show month and day
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d"
+            return formatter.string(from: date)
+        } else {
+            // Different year - show full date
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d, yyyy"
+            return formatter.string(from: date)
+        }
+    }
+    
+    var body: some View {
+        HStack {
+            Text(displayText)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.gray)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(hex: "#23282A"))
+    }
+}
 
 // MARK: - Contacts Permission Banner
 struct ContactsPermissionBanner: View {
