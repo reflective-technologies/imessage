@@ -106,6 +106,7 @@ struct LinkRow: View {
             }
         }
         .padding(16)
+        .frame(maxWidth: 800, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white.opacity(isHovered ? 0.1 : 0))

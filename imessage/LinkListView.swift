@@ -28,6 +28,14 @@ struct LinkListView: View {
             }
         }
     }
+    
+    var groupedLinks: [(date: Date, links: [ExtractedLink])] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: filteredLinks) { link in
+            calendar.startOfDay(for: link.message.date)
+        }
+        return grouped.sorted { $0.key > $1.key }.map { (date: $0.key, links: $0.value) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,12 +65,20 @@ struct LinkListView: View {
                 .padding()
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(filteredLinks.enumerated()), id: \.element.id) { index, link in
-                            LinkRow(link: link)
-                                .onAppear {
-                                    loadOpenGraphIfNeeded(for: link, at: index)
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        ForEach(groupedLinks, id: \.date) { group in
+                            Section {
+                                ForEach(group.links) { link in
+                                    LinkRow(link: link)
+                                        .onAppear {
+                                            if let index = filteredLinks.firstIndex(where: { $0.id == link.id }) {
+                                                loadOpenGraphIfNeeded(for: link, at: index)
+                                            }
+                                        }
                                 }
+                            } header: {
+                                DateHeaderView(date: group.date)
+                            }
                         }
                     }
                 }
@@ -95,13 +111,7 @@ struct LinkListView: View {
                     Label("Reset Permissions", systemImage: "xmark.circle")
                 }
             }
-            ToolbarItem(placement: .status) {
-                if !isLoading && errorMessage == nil {
-                    Text("\(filteredLinks.count) links")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                }
-            }
+
         }
         .onAppear {
             if links.isEmpty {
@@ -313,6 +323,46 @@ struct LinkListView: View {
     }
 }
 
+
+struct DateHeaderView: View {
+    let date: Date
+    
+    private var displayText: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
+            // This week - show day name
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: date)
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            // This year - show month and day
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d"
+            return formatter.string(from: date)
+        } else {
+            // Different year - show full date
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d, yyyy"
+            return formatter.string(from: date)
+        }
+    }
+    
+    var body: some View {
+        HStack {
+            Text(displayText)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.gray)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(hex: "#23282A"))
+    }
+}
 
 struct OnboardingView: View {
     let errorMessage: String?
