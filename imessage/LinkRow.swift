@@ -20,97 +20,138 @@ struct LinkRow: View {
         self.onSelect = onSelect
     }
     
+    private var isTwitterLink: Bool {
+        let host = link.url.host ?? ""
+        return host.contains("x.com") || host.contains("twitter.com")
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Left side - Text content
-            VStack(alignment: .leading, spacing: 8) {
-                // Title
-                Text(link.displayTitle)
-                    .font(.headline)
-                    .fontWeight(.bold)
+        VStack(alignment: .leading, spacing: 12) {
+            // Sender info row (always shown at top)
+            HStack(spacing: 6) {
+                ContactAvatarView(
+                    name: link.displayContactName,
+                    profileImage: link.contactPhoto,
+                    size: 20
+                )
+
+                Text(link.displayContactName)
+                    .font(.caption)
+                    .fontWeight(.medium)
                     .foregroundColor(.white)
-                    .lineLimit(2)
-                
-                // Description
-                if let description = link.openGraphData?.description, !description.isEmpty {
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                        .lineLimit(3)
-                }
-                
-                // Metadata row
-                HStack(spacing: 6) {
-                    // Sender avatar and name
-                    ContactAvatarView(
-                        name: link.displayContactName,
-                        profileImage: link.contactPhoto,
-                        size: 20
-                    )
-                    
-                    Text(link.displayContactName)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                    
-                    Text("·")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    // Domain
-                    Text((link.url.host ?? "").uppercased())
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.gray)
-                    
-                    Text("·")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    // Time
-                    Text(link.message.date, style: .relative)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
+
+                Text("·")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+
+                Text(link.message.date, style: .relative)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+
+                Spacer()
             }
-            
-            Spacer()
-            
-            // Right side - OG image
-            if let imageURLString = link.openGraphData?.imageURL,
-               let imageURL = URL(string: imageURLString) {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .empty:
+
+            // Content area - different layout for Twitter vs regular links
+            if isTwitterLink, let ogData = link.openGraphData {
+                // Twitter-specific card - show if we have any data
+                if ogData.imageURL != nil {
+                    TweetPreviewCardLarge(ogData: ogData, url: link.url)
+                        .frame(maxWidth: 500)
+                } else {
+                    TweetPreviewCard(ogData: ogData, url: link.url)
+                        .frame(maxWidth: 500)
+                }
+            } else if isTwitterLink && link.openGraphData == nil {
+                // Twitter link but no OG data yet - show placeholder
+                VStack(alignment: .leading, spacing: 8) {
+                    if link.isLoadingOpenGraph {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Loading tweet...")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    Text("x.com")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .padding(12)
+                .frame(maxWidth: 500, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(NSColor.controlBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                )
+            } else {
+                // Regular link layout
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Title
+                        Text(link.displayTitle)
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+
+                        // Description
+                        if let description = link.openGraphData?.description, !description.isEmpty {
+                            Text(description)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                                .lineLimit(3)
+                        }
+
+                        // Domain
+                        Text((link.url.host ?? "").uppercased())
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.gray)
+                    }
+
+                    Spacer()
+
+                    // Right side - OG image
+                    if let imageURLString = link.openGraphData?.imageURL,
+                       let imageURL = URL(string: imageURLString) {
+                        AsyncImage(url: imageURL) { phase in
+                            switch phase {
+                            case .empty:
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.gray.opacity(0.3))
+                                    .frame(width: 100, height: 100)
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 100, height: 100)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            case .failure:
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.gray.opacity(0.3))
+                                    .frame(width: 100, height: 100)
+                                    .overlay(
+                                        Image(systemName: "photo")
+                                            .foregroundColor(.gray)
+                                    )
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                    } else if link.isLoadingOpenGraph {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 100, height: 100)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 100, height: 100)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    case .failure:
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.3))
+                            .fill(Color.gray.opacity(0.2))
                             .frame(width: 100, height: 100)
                             .overlay(
-                                Image(systemName: "photo")
-                                    .foregroundColor(.gray)
+                                ProgressView()
+                                    .scaleEffect(0.8)
                             )
-                    @unknown default:
-                        EmptyView()
                     }
                 }
-            } else if link.isLoadingOpenGraph {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 100, height: 100)
-                    .overlay(
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    )
             }
         }
         .padding(16)
