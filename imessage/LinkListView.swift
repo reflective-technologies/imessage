@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+internal import Contacts
 
 // MARK: - Link Category
 enum LinkCategory: String, CaseIterable, Identifiable {
@@ -129,6 +130,7 @@ struct LinkListView: View {
     @State private var errorMessage: String?
     @State private var searchText = ""
     @State private var showPermissionDenied = false
+    @State private var messagesAccessGranted = false
     @State private var loadedIndices = Set<Int>()
     @State private var currentLoadingBatch = Set<Int>()
     @State private var selectedLink: ExtractedLink?
@@ -208,7 +210,12 @@ struct LinkListView: View {
                             errorMessage: errorMessage,
                             onGrantAccess: {
                                 selectDatabaseFile()
-                            }
+                            },
+                            onContinue: {
+                                showPermissionDenied = false
+                                loadLinks()
+                            },
+                            messagesGranted: $messagesAccessGranted
                         )
                     } else if let errorMessage = errorMessage {
                         VStack(spacing: 16) {
@@ -506,9 +513,8 @@ struct LinkListView: View {
                 // Update the service with the new URL (this will start security-scoped access)
                 MessageService.shared.setDatabaseURL(dbURL, folderURL: folderURL)
 
-                // Try loading again
-                showPermissionDenied = false
-                loadLinks()
+                // Mark messages access as granted, but stay on onboarding
+                messagesAccessGranted = true
             }
         }
     }
@@ -628,90 +634,173 @@ struct DateHeaderView: View {
 struct OnboardingView: View {
     let errorMessage: String?
     let onGrantAccess: () -> Void
+    let onContinue: () -> Void
+    @Binding var messagesGranted: Bool
+    
+    @State private var contactsGranted = false
 
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 0) {
             Spacer()
-
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(Color.blue.opacity(0.1))
-                    .frame(width: 120, height: 120)
-
-                Image(systemName: "message.fill")
-                    .font(.system(size: 56))
-                    .foregroundColor(.blue)
-            }
-
-            // Title and description
-            VStack(spacing: 12) {
-                Text("Access Your iMessages")
-                    .font(.system(size: 28, weight: .bold))
+            
+            VStack(spacing: 24) {
+                // Title
+                Text("Connect iMessage")
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.primary)
-
-                Text("Grant access to your Messages folder to view all your shared links in one place.")
-                    .font(.system(size: 16))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 400)
-            }
-
-            // Error message if present
-            if let error = errorMessage {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundColor(.orange)
-                    Text(error)
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
+                
+                // Permission rows
+                VStack(spacing: 16) {
+                    // Messages permission
+                    PermissionRow(
+                        icon: "externaldrive.fill",
+                        title: "Messages",
+                        description: "Allows this app to read your iMessages locally.",
+                        isGranted: messagesGranted,
+                        onRequest: onGrantAccess
+                    )
+                    
+                    // Contacts permission
+                    PermissionRow(
+                        icon: "person.2.fill",
+                        title: "Contacts",
+                        description: "Allows this app to show who sent you links.",
+                        isGranted: contactsGranted,
+                        onRequest: {
+                            ContactService.shared.requestAccess { granted in
+                                contactsGranted = granted
+                            }
+                        }
+                    )
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(8)
-            }
-
-            // Main CTA button
-            VStack(spacing: 12) {
-                Button(action: onGrantAccess) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "folder.badge.plus")
-                        Text("Grant Access to Messages")
-                    }
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(minWidth: 240)
-                    .padding(.vertical, 14)
-                    .background(Color.blue)
-                    .cornerRadius(10)
-                }
-                .buttonStyle(.plain)
-
-                // Helper text
-                VStack(spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "info.circle")
+                
+                // Privacy notice
+                VStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.fill")
                             .font(.system(size: 12))
-                        Text("You'll select the Messages folder at:")
+                            .foregroundColor(.green)
+                        Text("Your messages stay on your device")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.primary)
                     }
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-
-                    Text("~/Library/Messages")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.separatorColor).opacity(0.2))
-                        .cornerRadius(4)
+                    
+                    Text("We never upload, store, or have access to your messages. Everything is processed locally on your Mac.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 360)
+                }
+                .padding(.top, 8)
+                
+                // Continue button (only when messages granted)
+                if messagesGranted {
+                    Button(action: onContinue) {
+                        HStack(spacing: 8) {
+                            Text("Continue")
+                            Image(systemName: "arrow.right")
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 8)
+                }
+                
+                // Error message if present
+                if let error = errorMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundColor(.orange)
+                        Text(error)
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
                 }
             }
-
+            .padding(.horizontal, 32)
+            .padding(.vertical, 28)
+            .background(Color(hex: "#23282A"))
+            .cornerRadius(16)
+            .frame(maxWidth: 460)
+            
             Spacer()
+
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.windowBackgroundColor))
+        .onAppear {
+            // Check current permission states
+            contactsGranted = ContactService.shared.authorizationStatus == .authorized
+        }
+    }
+}
+
+struct PermissionRow: View {
+    let icon: String
+    let title: String
+    let description: String
+    let isGranted: Bool
+    let onRequest: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Icon
+            ZStack {
+                Circle()
+                    .stroke(Color(.separatorColor).opacity(0.5), lineWidth: 1)
+                    .frame(width: 44, height: 44)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(.primary)
+            }
+            
+            // Text content
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.primary)
+                    
+                    if isGranted {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.green)
+                    }
+                }
+                
+                Text(description)
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            // Request button
+            if !isGranted {
+                Button(action: onRequest) {
+                    Text("Request...")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color(.separatorColor).opacity(0.3))
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 4)
     }
 }
 

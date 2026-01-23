@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Contacts
+internal import Contacts
 
 class ContactService {
     static let shared = ContactService()
@@ -17,16 +17,29 @@ class ContactService {
     private var isLoaded = false
 
     private init() {
-        requestAccessAndLoad()
+        // Don't automatically request access - wait for explicit user action
+        // Check if we already have access and load contacts if so
+        if CNContactStore.authorizationStatus(for: .contacts) == .authorized {
+            loadAllContacts()
+        }
     }
-
-    private func requestAccessAndLoad() {
+    
+    /// Check current authorization status
+    var authorizationStatus: CNAuthorizationStatus {
+        CNContactStore.authorizationStatus(for: .contacts)
+    }
+    
+    /// Request contacts access - call this from a user-initiated action (e.g., button tap)
+    func requestAccess(completion: @escaping (Bool) -> Void) {
         contactStore.requestAccess(for: .contacts) { [weak self] granted, error in
             if granted {
                 print("Contact access granted")
                 self?.loadAllContacts()
             } else {
                 print("Contact access denied: \(error?.localizedDescription ?? "unknown error")")
+            }
+            DispatchQueue.main.async {
+                completion(granted)
             }
         }
     }
