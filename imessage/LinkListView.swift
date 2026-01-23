@@ -17,6 +17,7 @@ struct LinkListView: View {
     @State private var showPermissionDenied = false
     @State private var loadedIndices = Set<Int>()
     @State private var currentLoadingBatch = Set<Int>()
+    @State private var selectedLink: ExtractedLink?
 
     var filteredLinks: [ExtractedLink] {
         if searchText.isEmpty {
@@ -38,64 +39,91 @@ struct LinkListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if isLoading {
-                ProgressView("Loading messages...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if showPermissionDenied {
-                OnboardingView(
-                    errorMessage: errorMessage,
-                    onGrantAccess: {
-                        selectDatabaseFile()
+        HStack(spacing: 0) {
+            // Left side - Link list
+            VStack(spacing: 0) {
+                if isLoading {
+                    ProgressView("Loading messages...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if showPermissionDenied {
+                    OnboardingView(
+                        errorMessage: errorMessage,
+                        onGrantAccess: {
+                            selectDatabaseFile()
+                        }
+                    )
+                } else if let errorMessage = errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 48))
+                            .foregroundColor(.orange)
+                        Text(errorMessage)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                        Button("Retry") {
+                            loadLinks()
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                )
-            } else if let errorMessage = errorMessage {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 48))
-                        .foregroundColor(.orange)
-                    Text(errorMessage)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                    Button("Retry") {
-                        loadLinks()
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding()
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                        ForEach(groupedLinks, id: \.date) { group in
-                            Section {
-                                ForEach(group.links) { link in
-                                    LinkRow(link: link)
+                    .padding()
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                            ForEach(groupedLinks, id: \.date) { group in
+                                Section {
+                                    ForEach(group.links) { link in
+                                        LinkRow(
+                                            link: link,
+                                            isSelected: selectedLink?.id == link.id,
+                                            onSelect: {
+                                                withAnimation(.easeInOut(duration: 0.2)) {
+                                                    if selectedLink?.id == link.id {
+                                                        // Deselect if already selected
+                                                        selectedLink = nil
+                                                    } else {
+                                                        selectedLink = link
+                                                    }
+                                                }
+                                            }
+                                        )
                                         .onAppear {
                                             if let index = filteredLinks.firstIndex(where: { $0.id == link.id }) {
                                                 loadOpenGraphIfNeeded(for: link, at: index)
                                             }
                                         }
+                                    }
+                                } header: {
+                                    DateHeaderView(date: group.date)
                                 }
-                            } header: {
-                                DateHeaderView(date: group.date)
+                            }
+                        }
+                    }
+                    .background(Color(hex: "#23282A"))
+                    .searchable(text: $searchText, prompt: "Search links or messages")
+                    .overlay {
+                        if filteredLinks.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: searchText.isEmpty ? "link.circle" : "magnifyingglass")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(.secondary)
+                                Text(searchText.isEmpty ? "No links found in messages" : "No matching links")
+                                    .font(.headline)
+                                    .foregroundColor(.secondary)
                             }
                         }
                     }
                 }
-                .background(Color(hex: "#23282A"))
-                .searchable(text: $searchText, prompt: "Search links or messages")
-                .overlay {
-                    if filteredLinks.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: searchText.isEmpty ? "link.circle" : "magnifyingglass")
-                                .font(.system(size: 48))
-                                .foregroundColor(.secondary)
-                            Text(searchText.isEmpty ? "No links found in messages" : "No matching links")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
+            }
+            .frame(minWidth: 400)
+            
+            // Right side - Message context panel
+            if let link = selectedLink {
+                Divider()
+                    .background(Color.white.opacity(0.2))
+                
+                MessageContextView(link: link)
+                    .frame(minWidth: 350, idealWidth: 400, maxWidth: 500)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .navigationTitle("iMessage Links")

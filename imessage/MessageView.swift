@@ -37,7 +37,380 @@ struct SampleMessage: Identifiable {
     }
 }
 
-// MARK: - Message List View
+// MARK: - Message Context View (shows surrounding messages for a link)
+struct MessageContextView: View {
+    let link: ExtractedLink
+    @State private var messages: [Message] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Message Context")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    Text(link.displayContactName)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                Spacer()
+                
+                // Open link button
+                Button(action: {
+                    NSWorkspace.shared.open(link.url)
+                }) {
+                    HStack(spacing: 4) {
+                        Text("Open Link")
+                            .font(.caption)
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.blue)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .background(Color(hex: "#1C1C1E"))
+            
+            Divider()
+                .background(Color.white.opacity(0.1))
+            
+            // Messages
+            if isLoading {
+                Spacer()
+                ProgressView()
+                    .scaleEffect(0.8)
+                Spacer()
+            } else if let error = errorMessage {
+                Spacer()
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.title2)
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                Spacer()
+            } else {
+                RealMessageListView(messages: messages, highlightedMessageId: link.message.id)
+            }
+        }
+        .onAppear {
+            loadSurroundingMessages()
+        }
+        .onChange(of: link.id) { _, _ in
+            loadSurroundingMessages()
+        }
+    }
+    
+    private func loadSurroundingMessages() {
+        isLoading = true
+        errorMessage = nil
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let surroundingMessages = try MessageService.shared.fetchSurroundingMessages(for: link.message)
+                DispatchQueue.main.async {
+                    self.messages = surroundingMessages
+                    self.isLoading = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to load messages"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Real Message List View (uses actual Message model)
+struct RealMessageListView: View {
+    let messages: [Message]
+    let highlightedMessageId: Int?
+    
+    init(messages: [Message], highlightedMessageId: Int? = nil) {
+        self.messages = messages
+        self.highlightedMessageId = highlightedMessageId
+    }
+    
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                        VStack(spacing: 4) {
+                            // Show timestamp if needed
+                            if shouldShowTimestamp(for: index) {
+                                TimestampView(date: message.date)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 8)
+                            }
+                            
+                            // Message bubble - show tail on last message in sequence (both sent and received)
+                            let isLast = isLastInSequence(for: index)
+                            let isHighlighted = message.id == highlightedMessageId
+                            RealMessageBubbleView(
+                                message: message,
+                                showTail: isLast,
+                                isHighlighted: isHighlighted
+                            )
+                            .id(message.id)
+                        }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+            }
+            .onAppear {
+                // Scroll to highlighted message
+                if let highlightedId = highlightedMessageId {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation {
+                            proxy.scrollTo(highlightedId, anchor: .center)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func shouldShowTimestamp(for index: Int) -> Bool {
+        guard index > 0 else { return true }
+        let currentMessage = messages[index]
+        let previousMessage = messages[index - 1]
+        
+        let timeDifference = currentMessage.date.timeIntervalSince(previousMessage.date)
+        return timeDifference > 3600
+    }
+    
+    private func isLastInSequence(for index: Int) -> Bool {
+        let currentMessage = messages[index]
+        
+        guard index < messages.count - 1 else { return true }
+        
+        let nextMessage = messages[index + 1]
+        
+        if nextMessage.isFromMe != currentMessage.isFromMe {
+            return true
+        }
+        
+        let timeDifference = nextMessage.date.timeIntervalSince(currentMessage.date)
+        if timeDifference > 3600 {
+            return true
+        }
+        
+        return false
+    }
+}
+
+// MARK: - Real Message Bubble View (uses actual Message model)
+struct RealMessageBubbleView: View {
+    let message: Message
+    let showTail: Bool
+    let isHighlighted: Bool
+    @State private var detectedURL: URL?
+    @State private var openGraphData: OpenGraphData?
+    @State private var isLoadingOG = false
+    
+    init(message: Message, showTail: Bool, isHighlighted: Bool = false) {
+        self.message = message
+        self.showTail = showTail
+        self.isHighlighted = isHighlighted
+    }
+    
+    var body: some View {
+        HStack {
+            if message.isFromMe {
+                Spacer(minLength: 60)
+            }
+            
+            if let text = message.text {
+                // Check if it's a single emoji (large display)
+                if isSingleEmoji(text) {
+                    Text(text)
+                        .font(.system(size: 80))
+                } else {
+                    VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: 4) {
+                        // Show link preview if we have a URL
+                        if let url = detectedURL {
+                            LinkPreviewBubble(
+                                url: url,
+                                openGraphData: openGraphData,
+                                isFromMe: message.isFromMe,
+                                isLoading: isLoadingOG
+                            )
+                            .onTapGesture {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        
+                        // Show text bubble (with URL removed if we're showing preview)
+                        let displayText = detectedURL != nil ? textWithoutURL(text) : text
+                        if !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(displayText)
+                                .font(.system(size: 17))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(
+                                    MessageBubbleShape(isFromMe: message.isFromMe, showTail: showTail && detectedURL == nil)
+                                        .fill(message.isFromMe ? Color.iMessageBlue : Color.iMessageGray)
+                                )
+                                .padding(.bottom, showTail && detectedURL == nil ? 3 : 0)
+                        }
+                    }
+                    .overlay(
+                        // Highlight ring for the message containing the link
+                        RoundedRectangle(cornerRadius: 17)
+                            .stroke(Color.yellow, lineWidth: isHighlighted ? 2 : 0)
+                            .padding(-2)
+                    )
+                }
+            }
+            
+            if !message.isFromMe {
+                Spacer(minLength: 60)
+            }
+        }
+        .onAppear {
+            detectAndLoadURL()
+        }
+    }
+    
+    private func isSingleEmoji(_ text: String) -> Bool {
+        guard text.count == 1 else { return false }
+        return text.unicodeScalars.first?.properties.isEmoji ?? false
+    }
+    
+    private func detectAndLoadURL() {
+        guard let text = message.text else { return }
+        
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let nsString = text as NSString
+        let matches = detector?.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+        
+        if let firstMatch = matches?.first, let url = firstMatch.url {
+            self.detectedURL = url
+            loadOpenGraphData(for: url)
+        }
+    }
+    
+    private func loadOpenGraphData(for url: URL) {
+        isLoadingOG = true
+        
+        Task {
+            let data = await OpenGraphService.shared.fetchMetadata(for: url)
+            await MainActor.run {
+                self.openGraphData = data
+                self.isLoadingOG = false
+            }
+        }
+    }
+    
+    private func textWithoutURL(_ text: String) -> String {
+        guard let url = detectedURL else { return text }
+        
+        // Remove the URL from the text
+        var result = text.replacingOccurrences(of: url.absoluteString, with: "")
+        
+        // Also try removing with trailing slash variations
+        result = result.replacingOccurrences(of: url.absoluteString + "/", with: "")
+        if url.absoluteString.hasSuffix("/") {
+            result = result.replacingOccurrences(of: String(url.absoluteString.dropLast()), with: "")
+        }
+        
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+// MARK: - Link Preview Bubble (iMessage style)
+struct LinkPreviewBubble: View {
+    let url: URL
+    let openGraphData: OpenGraphData?
+    let isFromMe: Bool
+    let isLoading: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Image preview
+            if let imageURLString = openGraphData?.imageURL,
+               let imageURL = URL(string: imageURLString) {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(height: 140)
+                            .overlay(ProgressView().scaleEffect(0.7))
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 140)
+                            .clipped()
+                    case .failure:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 80)
+                            .overlay(
+                                Image(systemName: "link")
+                                    .font(.title)
+                                    .foregroundColor(.gray)
+                            )
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            } else if isLoading {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 100)
+                    .overlay(ProgressView().scaleEffect(0.7))
+            }
+            
+            // Text content
+            VStack(alignment: .leading, spacing: 4) {
+                // Title
+                if let title = openGraphData?.title, !title.isEmpty {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                } else if !isLoading {
+                    Text(url.host ?? url.absoluteString)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                }
+                
+                // Domain
+                Text((url.host ?? "").lowercased())
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.7))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isFromMe ? Color.iMessageBlue : Color.iMessageGray)
+        }
+        .frame(width: 260)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Message List View (for SampleMessage - kept for previews)
 struct MessageListView: View {
     let messages: [SampleMessage]
     
@@ -53,11 +426,11 @@ struct MessageListView: View {
                                 .padding(.bottom, 8)
                         }
                         
-                        // Message bubble - show tail only on sent messages (blue) and only on last in sequence
+                        // Message bubble - show tail on last message in sequence (both sent and received)
                         let isLast = isLastInSequence(for: index)
                         MessageBubbleView(
                             message: message,
-                            showTail: message.isFromMe && isLast
+                            showTail: isLast
                         )
                         
                         // Show delivery status only for the last sent message in a consecutive sequence
@@ -70,7 +443,7 @@ struct MessageListView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
         }
-        .background(Color.black)
+        
     }
     
     private func shouldShowTimestamp(for index: Int) -> Bool {
@@ -182,55 +555,92 @@ struct MessageBubbleShape: Shape {
     let showTail: Bool
     
     func path(in rect: CGRect) -> Path {
-        let radius: CGFloat = 17
+        let width = rect.width
+        let height = rect.height
         
+        // If no tail, just return a rounded rectangle
         if !showTail {
-            return RoundedRectangle(cornerRadius: radius).path(in: rect)
+            return RoundedRectangle(cornerRadius: 15).path(in: rect)
         }
         
-        // Use a combined approach: rounded rect + tail overlay
         var path = Path()
         
-        // Draw rounded rectangle for the main bubble
-        let bubbleRect = RoundedRectangle(cornerRadius: radius).path(in: rect)
-        path.addPath(bubbleRect)
-        
-        // Add tail as a separate curved shape
-        if isFromMe {
-            // Tail on bottom-right - pushed further into bubble for seamless blend
-            var tailPath = Path()
-            
-            // Start deep inside the bubble
-            tailPath.move(to: CGPoint(x: rect.maxX - 15, y: rect.maxY - 5))
-            
-            // Curve along the bottom-right, staying inside bubble
-            tailPath.addQuadCurve(
-                to: CGPoint(x: rect.maxX, y: rect.maxY - 3),
-                control: CGPoint(x: rect.maxX - 8, y: rect.maxY)
+        if !isFromMe {
+            // Received message - tail on bottom-left
+            path.move(to: CGPoint(x: 20, y: height))
+            path.addLine(to: CGPoint(x: width - 15, y: height))
+            path.addCurve(
+                to: CGPoint(x: width, y: height - 15),
+                control1: CGPoint(x: width - 8, y: height),
+                control2: CGPoint(x: width, y: height - 8)
             )
-            
-            // Curve out to tail tip (rounded)
-            tailPath.addCurve(
-                to: CGPoint(x: rect.maxX + 5, y: rect.maxY + 2),
-                control1: CGPoint(x: rect.maxX + 3, y: rect.maxY - 1),
-                control2: CGPoint(x: rect.maxX + 6, y: rect.maxY)
+            path.addLine(to: CGPoint(x: width, y: 15))
+            path.addCurve(
+                to: CGPoint(x: width - 15, y: 0),
+                control1: CGPoint(x: width, y: 8),
+                control2: CGPoint(x: width - 8, y: 0)
             )
-            
-            // Round the tip and curve back
-            tailPath.addCurve(
-                to: CGPoint(x: rect.maxX - 8, y: rect.maxY + 1),
-                control1: CGPoint(x: rect.maxX + 4, y: rect.maxY + 4),
-                control2: CGPoint(x: rect.maxX - 2, y: rect.maxY + 3)
+            path.addLine(to: CGPoint(x: 20, y: 0))
+            path.addCurve(
+                to: CGPoint(x: 5, y: 15),
+                control1: CGPoint(x: 12, y: 0),
+                control2: CGPoint(x: 5, y: 8)
             )
-            
-            // Curve back into the bubble
-            tailPath.addQuadCurve(
-                to: CGPoint(x: rect.maxX - 15, y: rect.maxY - 5),
-                control: CGPoint(x: rect.maxX - 14, y: rect.maxY)
+            path.addLine(to: CGPoint(x: 5, y: height - 10))
+            path.addCurve(
+                to: CGPoint(x: 0, y: height),
+                control1: CGPoint(x: 5, y: height - 1),
+                control2: CGPoint(x: 0, y: height)
             )
-            
-            tailPath.closeSubpath()
-            path.addPath(tailPath)
+            path.addLine(to: CGPoint(x: -1, y: height))
+            path.addCurve(
+                to: CGPoint(x: 12, y: height - 4),
+                control1: CGPoint(x: 4, y: height + 1),
+                control2: CGPoint(x: 8, y: height - 1)
+            )
+            path.addCurve(
+                to: CGPoint(x: 20, y: height),
+                control1: CGPoint(x: 15, y: height),
+                control2: CGPoint(x: 20, y: height)
+            )
+        } else {
+            // Sent message - tail on bottom-right
+            path.move(to: CGPoint(x: width - 20, y: height))
+            path.addLine(to: CGPoint(x: 15, y: height))
+            path.addCurve(
+                to: CGPoint(x: 0, y: height - 15),
+                control1: CGPoint(x: 8, y: height),
+                control2: CGPoint(x: 0, y: height - 8)
+            )
+            path.addLine(to: CGPoint(x: 0, y: 15))
+            path.addCurve(
+                to: CGPoint(x: 15, y: 0),
+                control1: CGPoint(x: 0, y: 8),
+                control2: CGPoint(x: 8, y: 0)
+            )
+            path.addLine(to: CGPoint(x: width - 20, y: 0))
+            path.addCurve(
+                to: CGPoint(x: width - 5, y: 15),
+                control1: CGPoint(x: width - 12, y: 0),
+                control2: CGPoint(x: width - 5, y: 8)
+            )
+            path.addLine(to: CGPoint(x: width - 5, y: height - 12))
+            path.addCurve(
+                to: CGPoint(x: width, y: height),
+                control1: CGPoint(x: width - 5, y: height - 1),
+                control2: CGPoint(x: width, y: height)
+            )
+            path.addLine(to: CGPoint(x: width + 1, y: height))
+            path.addCurve(
+                to: CGPoint(x: width - 12, y: height - 4),
+                control1: CGPoint(x: width - 4, y: height + 1),
+                control2: CGPoint(x: width - 8, y: height - 1)
+            )
+            path.addCurve(
+                to: CGPoint(x: width - 20, y: height),
+                control1: CGPoint(x: width - 15, y: height),
+                control2: CGPoint(x: width - 20, y: height)
+            )
         }
         
         return path

@@ -10,7 +10,15 @@ import SwiftUI
 
 struct LinkRow: View {
     @ObservedObject var link: ExtractedLink
+    let isSelected: Bool
+    let onSelect: () -> Void
     @State private var isHovered = false
+    
+    init(link: ExtractedLink, isSelected: Bool = false, onSelect: @escaping () -> Void = {}) {
+        self.link = link
+        self.isSelected = isSelected
+        self.onSelect = onSelect
+    }
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -109,7 +117,11 @@ struct LinkRow: View {
         .frame(maxWidth: 800, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(isHovered ? 0.1 : 0))
+                .fill(isSelected ? Color.blue.opacity(0.3) : (isHovered ? Color.white.opacity(0.1) : Color.clear))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected ? Color.blue.opacity(0.5) : Color.clear, lineWidth: 2)
         )
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -119,7 +131,7 @@ struct LinkRow: View {
         }
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(isHovered ? 0 : 0.1))
+                .fill(Color.white.opacity(isHovered || isSelected ? 0 : 0.1))
                 .frame(height: 1)
         }
         .contextMenu {
@@ -137,7 +149,7 @@ struct LinkRow: View {
             }
         }
         .onTapGesture {
-            NSWorkspace.shared.open(link.url)
+            onSelect()
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(link.displayTitle), from \(link.displayContactName)")
@@ -205,9 +217,9 @@ private extension ExtractedLink {
 
 #Preview("Basic") {
     VStack(spacing: 0) {
-        LinkRow(link: .sampleBasic())
-        LinkRow(link: .sampleWithOpenGraph())
-        LinkRow(link: .sampleLoading())
+        LinkRow(link: .sampleBasic(), isSelected: false, onSelect: {})
+        LinkRow(link: .sampleWithOpenGraph(), isSelected: true, onSelect: {})
+        LinkRow(link: .sampleLoading(), isSelected: false, onSelect: {})
     }
     .padding()
     .background(Color(hex: "#23282A"))
