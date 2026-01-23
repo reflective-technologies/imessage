@@ -255,7 +255,7 @@ struct RealMessageBubbleView: View {
                         let displayText = detectedURL != nil ? textWithoutURL(text) : text
                         if !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Text(displayText)
-                                .font(.system(size: 17))
+                                .font(.system(size: 14))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 10)
@@ -531,7 +531,7 @@ struct MessageBubbleView: View {
                     .font(.system(size: 80))
             } else if let text = message.text {
                 Text(text)
-                    .font(.system(size: 17))
+                    .font(.system(size: 14))
                     .foregroundColor(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)

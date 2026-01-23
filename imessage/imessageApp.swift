@@ -18,6 +18,7 @@ struct imessageApp: App {
         WindowGroup {
             ContentView()
                 .frame(minWidth: 400)
+                .preferredColorScheme(.dark)
         }
         .defaultSize(width: 900, height: 600)
         .commands {

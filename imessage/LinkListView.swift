@@ -9,7 +9,113 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+// MARK: - Link Category
+enum LinkCategory: String, CaseIterable, Identifiable {
+    case all = "All"
+    case articles = "Articles"
+    case videos = "Videos"
+    case social = "Social"
+    case shopping = "Shopping"
+    case images = "Images"
+    case other = "Other"
+    
+    var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .all: return "link"
+        case .articles: return "doc.text"
+        case .videos: return "play.rectangle"
+        case .social: return "bubble.left.and.bubble.right"
+        case .shopping: return "cart"
+        case .images: return "photo"
+        case .other: return "ellipsis.circle"
+        }
+    }
+    
+    static func categorize(url: URL, openGraphData: OpenGraphData?) -> LinkCategory {
+        let host = url.host?.lowercased() ?? ""
+        let path = url.path.lowercased()
+        
+        // Video platforms
+        let videoHosts = ["youtube.com", "youtu.be", "vimeo.com", "twitch.tv", "tiktok.com", 
+                         "dailymotion.com", "wistia.com", "loom.com"]
+        if videoHosts.contains(where: { host.contains($0) }) {
+            return .videos
+        }
+        
+        // Social media
+        let socialHosts = ["twitter.com", "x.com", "facebook.com", "instagram.com", "linkedin.com",
+                          "reddit.com", "threads.net", "mastodon.social", "bsky.app", "snapchat.com"]
+        if socialHosts.contains(where: { host.contains($0) }) {
+            return .social
+        }
+        
+        // Shopping
+        let shoppingHosts = ["amazon.com", "ebay.com", "etsy.com", "shopify.com", "walmart.com",
+                            "target.com", "bestbuy.com", "aliexpress.com", "wish.com", "shop.app"]
+        if shoppingHosts.contains(where: { host.contains($0) }) {
+            return .shopping
+        }
+        
+        // Images
+        let imageHosts = ["imgur.com", "flickr.com", "unsplash.com", "giphy.com", "tenor.com"]
+        let imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"]
+        if imageHosts.contains(where: { host.contains($0) }) ||
+           imageExtensions.contains(where: { path.hasSuffix($0) }) {
+            return .images
+        }
+        
+        // Articles - news sites and blogs
+        let articleHosts = ["medium.com", "substack.com", "nytimes.com", "wsj.com", "bbc.com",
+                           "cnn.com", "theguardian.com", "techcrunch.com", "theverge.com",
+                           "arstechnica.com", "wired.com", "forbes.com", "bloomberg.com",
+                           "reuters.com", "apnews.com", "npr.org", "washingtonpost.com",
+                           "huffpost.com", "buzzfeed.com", "vice.com", "vox.com"]
+        if articleHosts.contains(where: { host.contains($0) }) {
+            return .articles
+        }
+        
+        // Check OpenGraph data for clues
+        if let ogData = openGraphData {
+            let title = ogData.title?.lowercased() ?? ""
+            let description = ogData.description?.lowercased() ?? ""
+            
+            // Video indicators
+            if title.contains("video") || description.contains("watch") {
+                return .videos
+            }
+        }
+        
+        // Check path for article indicators
+        let articlePaths = ["/article", "/post", "/blog", "/news", "/story"]
+        if articlePaths.contains(where: { path.contains($0) }) {
+            return .articles
+        }
+        
+        return .other
+    }
+}
+
+// MARK: - Grouping Mode
+enum GroupingMode: String, CaseIterable, Identifiable {
+    case date = "Date"
+    case domain = "Domain"
+    case contact = "Contact"
+    
+    var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .date: return "calendar"
+        case .domain: return "globe"
+        case .contact: return "person"
+        }
+    }
+}
+
 struct LinkListView: View {
+    @Binding var selectedCategory: LinkCategory
     @State private var links: [ExtractedLink] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -18,115 +124,165 @@ struct LinkListView: View {
     @State private var loadedIndices = Set<Int>()
     @State private var currentLoadingBatch = Set<Int>()
     @State private var selectedLink: ExtractedLink?
+    @State private var groupingMode: GroupingMode = .date
 
     var filteredLinks: [ExtractedLink] {
-        if searchText.isEmpty {
-            return links
-        } else {
-            return links.filter { link in
-                link.displayURL.localizedCaseInsensitiveContains(searchText) ||
-                link.message.text?.localizedCaseInsensitiveContains(searchText) ?? false
+        var result = links
+        
+        // Filter by category
+        if selectedCategory != .all {
+            result = result.filter { link in
+                LinkCategory.categorize(url: link.url, openGraphData: link.openGraphData) == selectedCategory
             }
         }
+        
+        // Filter by search
+        if !searchText.isEmpty {
+            let query = searchText.lowercased()
+            result = result.filter { link in
+                // Search in URL
+                link.url.absoluteString.lowercased().contains(query) ||
+                // Search in host/domain
+                (link.url.host?.lowercased().contains(query) ?? false) ||
+                // Search in OpenGraph title
+                (link.openGraphData?.title?.lowercased().contains(query) ?? false) ||
+                // Search in OpenGraph description
+                (link.openGraphData?.description?.lowercased().contains(query) ?? false) ||
+                // Search in OpenGraph site name
+                (link.openGraphData?.siteName?.lowercased().contains(query) ?? false) ||
+                // Search in contact name
+                link.displayContactName.lowercased().contains(query) ||
+                // Search in message text
+                (link.message.text?.lowercased().contains(query) ?? false)
+            }
+        }
+        
+        return result
     }
     
-    var groupedLinks: [(date: Date, links: [ExtractedLink])] {
+    var groupedByDate: [(key: Date, links: [ExtractedLink])] {
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: filteredLinks) { link in
             calendar.startOfDay(for: link.message.date)
         }
-        return grouped.sorted { $0.key > $1.key }.map { (date: $0.key, links: $0.value) }
+        return grouped.sorted { $0.key > $1.key }.map { (key: $0.key, links: $0.value) }
     }
-
+    
+    var groupedByDomain: [(key: String, links: [ExtractedLink])] {
+        let grouped = Dictionary(grouping: filteredLinks) { link in
+            link.url.host?.replacingOccurrences(of: "www.", with: "") ?? "Unknown"
+        }
+        return grouped.sorted { $0.value.count > $1.value.count }.map { (key: $0.key, links: $0.value) }
+    }
+    
+    var groupedByContact: [(key: String, links: [ExtractedLink])] {
+        let grouped = Dictionary(grouping: filteredLinks) { link in
+            link.displayContactName
+        }
+        return grouped.sorted { $0.value.count > $1.value.count }.map { (key: $0.key, links: $0.value) }
+    }
+    
     var body: some View {
-        HStack(spacing: 0) {
-            // Left side - Link list
-            VStack(spacing: 0) {
-                if isLoading {
-                    ProgressView("Loading messages...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if showPermissionDenied {
-                    OnboardingView(
-                        errorMessage: errorMessage,
-                        onGrantAccess: {
-                            selectDatabaseFile()
+        GeometryReader { geometry in
+            let isCompact = geometry.size.width < 700
+            
+            HStack(spacing: 0) {
+                // Left side - Link list
+                VStack(spacing: 0) {
+                    if isLoading {
+                        ProgressView("Loading messages...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if showPermissionDenied {
+                        OnboardingView(
+                            errorMessage: errorMessage,
+                            onGrantAccess: {
+                                selectDatabaseFile()
+                            }
+                        )
+                    } else if let errorMessage = errorMessage {
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 48))
+                                .foregroundColor(.orange)
+                            Text(errorMessage)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                            Button("Retry") {
+                                loadLinks()
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                    )
-                } else if let errorMessage = errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 48))
-                            .foregroundColor(.orange)
-                        Text(errorMessage)
-                            .multilineTextAlignment(.center)
-                            .padding()
-                        Button("Retry") {
-                            loadLinks()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding()
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                            ForEach(groupedLinks, id: \.date) { group in
-                                Section {
-                                    ForEach(group.links) { link in
-                                        LinkRow(
-                                            link: link,
-                                            isSelected: selectedLink?.id == link.id,
-                                            onSelect: {
-                                                withAnimation(.easeInOut(duration: 0.2)) {
-                                                    if selectedLink?.id == link.id {
-                                                        // Deselect if already selected
-                                                        selectedLink = nil
-                                                    } else {
-                                                        selectedLink = link
-                                                    }
+                        .padding()
+                    } else {
+                        VStack(spacing: 0) {
+                            // Link list
+                            ScrollView {
+                                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                                    switch groupingMode {
+                                    case .date:
+                                        ForEach(groupedByDate, id: \.key) { group in
+                                            Section {
+                                                ForEach(group.links) { link in
+                                                    linkRow(for: link, isCompact: isCompact)
                                                 }
+                                            } header: {
+                                                DateHeaderView(date: group.key)
                                             }
-                                        )
-                                        .onAppear {
-                                            if let index = filteredLinks.firstIndex(where: { $0.id == link.id }) {
-                                                loadOpenGraphIfNeeded(for: link, at: index)
+                                        }
+                                    case .domain:
+                                        ForEach(groupedByDomain, id: \.key) { group in
+                                            Section {
+                                                ForEach(group.links) { link in
+                                                    linkRow(for: link, isCompact: isCompact)
+                                                }
+                                            } header: {
+                                                GroupHeaderView(title: group.key, count: group.links.count, icon: "globe")
+                                            }
+                                        }
+                                    case .contact:
+                                        ForEach(groupedByContact, id: \.key) { group in
+                                            Section {
+                                                ForEach(group.links) { link in
+                                                    linkRow(for: link, isCompact: isCompact)
+                                                }
+                                            } header: {
+                                                GroupHeaderView(title: group.key, count: group.links.count, icon: "person.fill")
                                             }
                                         }
                                     }
-                                } header: {
-                                    DateHeaderView(date: group.date)
+                                }
+                            }
+                            .background(Color(hex: "#23282A"))
+                        }
+                        .searchable(text: $searchText, prompt: "Search links or messages")
+                        .overlay {
+                            if filteredLinks.isEmpty {
+                                VStack(spacing: 12) {
+                                    Image(systemName: searchText.isEmpty ? "link.circle" : "magnifyingglass")
+                                        .font(.system(size: 48))
+                                        .foregroundColor(.secondary)
+                                    Text(searchText.isEmpty ? "No links found in messages" : "No matching links")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                         }
                     }
-                    .background(Color(hex: "#23282A"))
-                    .searchable(text: $searchText, prompt: "Search links or messages")
-                    .overlay {
-                        if filteredLinks.isEmpty {
-                            VStack(spacing: 12) {
-                                Image(systemName: searchText.isEmpty ? "link.circle" : "magnifyingglass")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(.secondary)
-                                Text(searchText.isEmpty ? "No links found in messages" : "No matching links")
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
+                }
+                .frame(minWidth: isCompact ? nil : 400)
+                
+                // Right side - Message context panel (only show on wider viewports)
+                if !isCompact, let link = selectedLink {
+                    Divider()
+                        .background(Color.white.opacity(0.2))
+                    
+                    MessageContextView(link: link)
+                        .frame(minWidth: 350, idealWidth: 400, maxWidth: 500)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
-            .frame(minWidth: 400)
-            
-            // Right side - Message context panel
-            if let link = selectedLink {
-                Divider()
-                    .background(Color.white.opacity(0.2))
-                
-                MessageContextView(link: link)
-                    .frame(minWidth: 350, idealWidth: 400, maxWidth: 500)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
         }
-        .navigationTitle("iMessage Links")
+        .navigationTitle(selectedCategory.rawValue)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: loadLinks) {
@@ -134,12 +290,6 @@ struct LinkListView: View {
                 }
                 .disabled(isLoading)
             }
-            // ToolbarItem(placement: .automatic) {
-            //     Button(action: resetPermissions) {
-            //         Label("Reset Permissions", systemImage: "xmark.circle")
-            //     }
-            // }
-
         }
         .onAppear {
             if links.isEmpty {
@@ -188,6 +338,28 @@ struct LinkListView: View {
             }
         }
     }
+    
+    @ViewBuilder
+    private func linkRow(for link: ExtractedLink, isCompact: Bool) -> some View {
+        LinkRow(
+            link: link,
+            isSelected: !isCompact && selectedLink?.id == link.id,
+            onSelect: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if selectedLink?.id == link.id {
+                        selectedLink = nil
+                    } else {
+                        selectedLink = link
+                    }
+                }
+            }
+        )
+        .onAppear {
+            if let index = filteredLinks.firstIndex(where: { $0.id == link.id }) {
+                loadOpenGraphIfNeeded(for: link, at: index)
+            }
+        }
+    }
 
     private func loadLinks() {
         isLoading = true
@@ -210,6 +382,8 @@ struct LinkListView: View {
                         }
                     } else {
                         self.links = extractedLinks
+                        // Update shared store for sidebar counts
+                        LinkStore.shared.updateLinks(extractedLinks)
                     }
                     isLoading = false
                 }
@@ -352,6 +526,32 @@ struct LinkListView: View {
 }
 
 
+// MARK: - Group Header View (for domain/contact grouping)
+struct GroupHeaderView: View {
+    let title: String
+    let count: Int
+    let icon: String
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundColor(.gray)
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.gray)
+            Text("(\(count))")
+                .font(.system(size: 12))
+                .foregroundColor(.gray.opacity(0.7))
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(hex: "#23282A"))
+    }
+}
+
+// MARK: - Date Header View
 struct DateHeaderView: View {
     let date: Date
     
@@ -656,5 +856,6 @@ struct SimpleLinkView: View {
 }
 
 #Preview {
-    LinkListView()
+    @Previewable @State var category: LinkCategory = .all
+    LinkListView(selectedCategory: $category)
 }
