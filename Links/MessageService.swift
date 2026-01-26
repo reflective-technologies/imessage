@@ -429,6 +429,7 @@ class MessageService {
         // Check if this is a Twitter URL
         let host = url.host ?? ""
         let isTwitter = host.contains("x.com") || host.contains("twitter.com")
+        let isInstagram = host.contains("instagram.com")
 
         do {
             // Decode the NSKeyedArchiver plist
@@ -522,11 +523,11 @@ class MessageService {
                 siteName = objects[siteNameUID] as? String
             }
 
-            // Extract icon and image URLs
+            // Extract icon and image URLs via structured UID extraction first
             iconURL = extractURLString(fromUID: iconUID)
             imageURL = extractURLString(fromUID: imageUID)
 
-            // If icon URL not found via metadata, scan for profile image URLs directly
+            // If icon URL not found via metadata, scan for profile image URLs directly (Twitter)
             if iconURL == nil && isTwitter {
                 for obj in objects {
                     if let str = obj as? String,
@@ -537,17 +538,116 @@ class MessageService {
                 }
             }
 
-            // If media image URL not found, scan for tweet media URLs
-            if imageURL == nil && isTwitter {
-                for obj in objects {
-                    if let str = obj as? String,
-                       (str.contains("pbs.twimg.com/media") ||
-                        str.contains("pbs.twimg.com/ext_tw_video_thumb") ||
-                        str.contains("pbs.twimg.com/tweet_video_thumb")),
-                       !str.contains("profile_images") {
-                        imageURL = str
-                        break
-                    }
+            // Universal image URL scanning for all URLs
+            // Scan all payload objects for image URLs, prioritizing content images over icons
+            // This works for Twitter, Instagram, YouTube, TikTok, and any other site
+            
+            // Collect all candidate image URLs from the payload
+            var candidateImageURLs: [(url: String, score: Int)] = []
+            
+            for obj in objects {
+                guard let str = obj as? String,
+                      str.hasPrefix("http"),
+                      str.count > 20 else { continue }
+                
+                let lowercased = str.lowercased()
+                var score = 0
+                
+                // Check if it's an image URL
+                let imageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+                let hasImageExtension = imageExtensions.contains { lowercased.contains($0) }
+                
+                // Must have image extension or be from known image CDN
+                let knownImageCDNs = [
+                    "pbs.twimg.com/media",           // Twitter media
+                    "pbs.twimg.com/ext_tw_video",    // Twitter video thumbs
+                    "pbs.twimg.com/tweet_video",     // Twitter video thumbs
+                    "i.ytimg.com",                   // YouTube thumbnails
+                    "img.youtube.com",               // YouTube thumbnails
+                    "scontent",                      // Instagram/Facebook CDN
+                    "cdninstagram.com",              // Instagram CDN
+                    "fbcdn.net",                     // Facebook CDN
+                    "tiktokcdn.com",                 // TikTok CDN
+                    "p16-sign",                      // TikTok CDN
+                    "cloudfront.net",                // AWS CloudFront (common CDN)
+                    "imgur.com",                     // Imgur
+                    "medium.com",                    // Medium
+                    "substack.com",                  // Substack
+                    "wp.com",                        // WordPress
+                    "githubusercontent.com",         // GitHub
+                    "twimg.com",                     // Twitter
+                ]
+                
+                let isFromKnownCDN = knownImageCDNs.contains { lowercased.contains($0) }
+                
+                guard hasImageExtension || isFromKnownCDN else { continue }
+                
+                // Score the URL - higher is better (more likely to be the main content image)
+                
+                // Penalize favicon/icon/logo URLs heavily
+                if lowercased.contains("favicon") || lowercased.contains(".ico") {
+                    continue // Skip entirely
+                }
+                if lowercased.contains("/icon") || lowercased.contains("logo") {
+                    score -= 50
+                }
+                if lowercased.contains("profile_image") || lowercased.contains("profile_pic") {
+                    score -= 30
+                }
+                
+                // Penalize static resource paths (often icons/favicons)
+                if lowercased.contains("/rsrc.php/") || lowercased.contains("static.") {
+                    score -= 40
+                }
+                
+                // Boost content-like paths
+                if lowercased.contains("/media/") || lowercased.contains("/image/") || lowercased.contains("/images/") {
+                    score += 20
+                }
+                if lowercased.contains("/photo/") || lowercased.contains("/video/") || lowercased.contains("/thumb") {
+                    score += 20
+                }
+                
+                // Boost known content CDN patterns
+                if lowercased.contains("pbs.twimg.com/media") {
+                    score += 50  // Twitter media images
+                }
+                if lowercased.contains("scontent") && lowercased.contains("cdninstagram.com") {
+                    score += 50  // Instagram content images
+                }
+                if lowercased.contains("i.ytimg.com") || lowercased.contains("img.youtube.com") {
+                    score += 50  // YouTube thumbnails
+                }
+                if lowercased.contains("tiktokcdn.com") || lowercased.contains("p16-sign") {
+                    score += 50  // TikTok thumbnails
+                }
+                
+                // Boost larger image URLs (often contain size hints)
+                if lowercased.contains("maxresdefault") || lowercased.contains("hqdefault") {
+                    score += 30  // YouTube high quality
+                }
+                if lowercased.contains("_large") || lowercased.contains("large.") {
+                    score += 20
+                }
+                if lowercased.contains("s640x640") || lowercased.contains("640x") {
+                    score += 15
+                }
+                
+                // Boost common image extensions
+                if hasImageExtension {
+                    score += 10
+                }
+                
+                candidateImageURLs.append((url: str, score: score))
+            }
+            
+            // Sort by score (highest first) and pick the best one
+            if !candidateImageURLs.isEmpty {
+                candidateImageURLs.sort { $0.score > $1.score }
+                let bestCandidate = candidateImageURLs[0]
+                // Only use if it scores reasonably well (not a penalized icon)
+                if bestCandidate.score > -20 {
+                    imageURL = bestCandidate.url
                 }
             }
 
