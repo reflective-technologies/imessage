@@ -306,6 +306,7 @@ struct LinkListView: View {
                                         }
                                     }
                                 }
+                                .coordinateSpace(name: "scroll")
                                 .background(Color(hex: "#23282A"))
                             }
                         }
@@ -671,15 +672,49 @@ struct DateHeaderView: View {
     }
     
     var body: some View {
-        HStack {
-            Text(displayText)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.gray)
-            Spacer()
+        GeometryReader { geometry in
+            let minY = geometry.frame(in: .named("scroll")).minY
+            // Header is considered "pinned" when it's at or near the top
+            let isPinned = minY <= 1
+            
+            HStack {
+                Text(displayText)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(isPinned ? .white : .gray)
+                    .padding(.horizontal, isPinned ? 14 : 0)
+                    .padding(.vertical, isPinned ? 7 : 0)
+                    .background {
+                        if isPinned {
+                            Capsule()
+                                .fill(.ultraThinMaterial)
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(
+                                            LinearGradient(
+                                                colors: [
+                                                    .white.opacity(0.3),
+                                                    .white.opacity(0.1),
+                                                    .clear
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1
+                                        )
+                                )
+                                .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
+                        }
+                    }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, isPinned ? 10 : 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .background(isPinned ? Color.clear : Color(hex: "#23282A"))
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPinned)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color(hex: "#23282A"))
+        .frame(height: 40)
     }
 }
 
