@@ -141,6 +141,7 @@ struct LinkListView: View {
     @State private var selectedLink: ExtractedLink?
     @State private var groupingMode: GroupingMode = .date
     @State private var canShowMessagePanel = true
+    @ObservedObject private var viewModeStore = ViewModeStore.shared
 
     var filteredLinks: [ExtractedLink] {
         var result = links
@@ -246,44 +247,67 @@ struct LinkListView: View {
                         )
                     } else {
                         VStack(spacing: 0) {
-                            // Link list
-                            ScrollView {
-                                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                                    switch groupingMode {
-                                    case .date:
-                                        ForEach(groupedByDate, id: \.key) { group in
-                                            Section {
-                                                ForEach(group.links) { link in
-                                                    linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
+                            if viewModeStore.viewMode == .grid {
+                                // Grid view using HomeLinkCard
+                                ScrollView {
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 280), spacing: 12)], spacing: 12) {
+                                        ForEach(filteredLinks) { link in
+                                            HomeLinkCard(
+                                                link: link,
+                                                isSelected: selectedLink?.id == link.id,
+                                                onSelect: {
+                                                    if canShowMessagePanel {
+                                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                                            selectedLink = selectedLink?.id == link.id ? nil : link
+                                                        }
+                                                    }
                                                 }
-                                            } header: {
-                                                DateHeaderView(date: group.key)
-                                            }
+                                            )
                                         }
-                                    case .domain:
-                                        ForEach(groupedByDomain, id: \.key) { group in
-                                            Section {
-                                                ForEach(group.links) { link in
-                                                    linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
+                                    }
+                                    .padding(16)
+                                }
+                                .background(Color(nsColor: .windowBackgroundColor))
+                            } else {
+                                // List view
+                                ScrollView {
+                                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                                        switch groupingMode {
+                                        case .date:
+                                            ForEach(groupedByDate, id: \.key) { group in
+                                                Section {
+                                                    ForEach(group.links) { link in
+                                                        linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
+                                                    }
+                                                } header: {
+                                                    DateHeaderView(date: group.key)
                                                 }
-                                            } header: {
-                                                GroupHeaderView(title: group.key, count: group.links.count, icon: "globe")
                                             }
-                                        }
-                                    case .contact:
-                                        ForEach(groupedByContact, id: \.key) { group in
-                                            Section {
-                                                ForEach(group.links) { link in
-                                                    linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
+                                        case .domain:
+                                            ForEach(groupedByDomain, id: \.key) { group in
+                                                Section {
+                                                    ForEach(group.links) { link in
+                                                        linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
+                                                    }
+                                                } header: {
+                                                    GroupHeaderView(title: group.key, count: group.links.count, icon: "globe")
                                                 }
-                                            } header: {
-                                                GroupHeaderView(title: group.key, count: group.links.count, icon: "person.fill")
+                                            }
+                                        case .contact:
+                                            ForEach(groupedByContact, id: \.key) { group in
+                                                Section {
+                                                    ForEach(group.links) { link in
+                                                        linkRow(for: link, canShowMessagePanel: canShowMessagePanel)
+                                                    }
+                                                } header: {
+                                                    GroupHeaderView(title: group.key, count: group.links.count, icon: "person.fill")
+                                                }
                                             }
                                         }
                                     }
                                 }
+                                .background(Color(hex: "#23282A"))
                             }
-                            .background(Color(hex: "#23282A"))
                         }
                         .searchable(text: $searchText, prompt: "Search links or messages")
                         .overlay {
@@ -329,6 +353,16 @@ struct LinkListView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 12) {
+                    // View mode toggle (grid/list)
+                    Picker("View", selection: $viewModeStore.viewMode) {
+                        ForEach(ViewMode.allCases, id: \.self) { mode in
+                            Image(systemName: mode.icon)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 100)
+                    
                     if canShowMessagePanel && selectedLink != nil {
                         Button(action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -425,8 +459,10 @@ struct LinkListView: View {
                 let messages = try MessageService.shared.fetchAllMessages()
                 print("Fetched \(messages.count) messages")
 
-                let extractedLinks = MessageService.shared.extractLinks(from: messages)
-                print("Extracted \(extractedLinks.count) links")
+                let allExtractedLinks = MessageService.shared.extractLinks(from: messages)
+                // Filter out links from messages sent by the user ("Me")
+                let extractedLinks = allExtractedLinks.filter { !$0.message.isFromMe }
+                print("Extracted \(allExtractedLinks.count) links, showing \(extractedLinks.count) after filtering out sent messages")
 
                 DispatchQueue.main.async {
                     if extractedLinks.isEmpty {

@@ -8,6 +8,28 @@
 import SwiftUI
 import Combine
 
+// MARK: - View Mode
+enum ViewMode: String, CaseIterable {
+    case grid = "Grid"
+    case list = "List"
+    
+    var icon: String {
+        switch self {
+        case .grid: return "square.grid.2x2"
+        case .list: return "list.bullet"
+        }
+    }
+}
+
+// MARK: - View Mode Store (Global state for view mode)
+class ViewModeStore: ObservableObject {
+    static let shared = ViewModeStore()
+    
+    @Published var viewMode: ViewMode = .grid
+    
+    private init() {}
+}
+
 struct ContentView: View {
     @State private var selectedCategory: LinkCategory = .home
     @State private var columnVisibility: NavigationSplitViewVisibility = .all

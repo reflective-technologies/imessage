@@ -8,19 +8,6 @@
 import SwiftUI
 internal import Contacts
 
-// MARK: - View Mode
-enum HomeViewMode: String, CaseIterable {
-    case cards = "Cards"
-    case list = "List"
-    
-    var icon: String {
-        switch self {
-        case .cards: return "square.grid.2x2"
-        case .list: return "list.bullet"
-        }
-    }
-}
-
 // MARK: - Home View
 struct HomeView: View {
     let links: [ExtractedLink]
@@ -28,7 +15,7 @@ struct HomeView: View {
     @Binding var selectedLink: ExtractedLink?
     let canShowMessagePanel: Bool
     @State private var hasContactsAccess: Bool = ContactService.shared.hasAccess
-    @State private var viewMode: HomeViewMode = .cards
+    @ObservedObject private var viewModeStore = ViewModeStore.shared
     
     /// Recent links sorted by date (most recent first)
     private var recentLinks: [ExtractedLink] {
@@ -37,7 +24,7 @@ struct HomeView: View {
     
     var body: some View {
         Group {
-            if viewMode == .cards {
+            if viewModeStore.viewMode == .grid {
                 // Card carousel view
                 ScrollView {
                     VStack(alignment: .leading, spacing: 32) {
@@ -61,7 +48,7 @@ struct HomeView: View {
                                 selectedLink: $selectedLink,
                                 canShowMessagePanel: canShowMessagePanel,
                                 onSeeAll: {
-                                    viewMode = .list
+                                    viewModeStore.viewMode = .list
                                 }
                             )
                         }
@@ -95,18 +82,6 @@ struct HomeView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Picker("View", selection: $viewMode) {
-                    ForEach(HomeViewMode.allCases, id: \.self) { mode in
-                        Image(systemName: mode.icon)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 100)
-            }
-        }
         .onAppear {
             // Refresh contacts authorization status when view appears
             hasContactsAccess = ContactService.shared.hasAccess

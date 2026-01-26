@@ -86,8 +86,8 @@ struct HomeLinkCard: View {
     let onSelect: () -> Void
     @State private var dominantColor: Color = Color(hex: "#2B2E30")
 
-    private let cardWidth: CGFloat = 320
-    private let cardHeight: CGFloat = 280
+    private let cardWidth: CGFloat = 280
+    private let cardHeight: CGFloat = 260
 
     private var isTwitterLink: Bool {
         let host = link.url.host ?? ""
