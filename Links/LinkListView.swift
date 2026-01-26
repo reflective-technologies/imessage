@@ -271,7 +271,7 @@ struct LinkListView: View {
                             } else {
                                 // List view
                                 ScrollView {
-                                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                                         switch groupingMode {
                                         case .date:
                                             ForEach(groupedByDate, id: \.key) { group in
@@ -305,6 +305,7 @@ struct LinkListView: View {
                                             }
                                         }
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .coordinateSpace(name: "scroll")
                                 .background(Color(hex: "#23282A"))

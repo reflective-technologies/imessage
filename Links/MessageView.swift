@@ -343,9 +343,8 @@ struct RealMessageBubbleView: View {
                         }
                     }
                     .overlay(
-                        // Highlight ring for the message containing the link
                         RoundedRectangle(cornerRadius: 17)
-                            .stroke(Color.yellow, lineWidth: isHighlighted ? 1 : 0)
+                            .stroke(Color.orange, lineWidth: isHighlighted ? 1 : 0)
                             .padding(-1)
                     )
                 }
@@ -745,7 +744,7 @@ struct TimestampView: View {
     }
 }
 
-// MARK: - Message Bubble View
+// MARK: - Message Bubble View (for SampleMessage previews)
 struct MessageBubbleView: View {
     let message: SampleMessage
     let showTail: Bool
@@ -769,7 +768,7 @@ struct MessageBubbleView: View {
                         MessageBubbleShape(isFromMe: message.isFromMe, showTail: showTail)
                             .fill(message.isFromMe ? Color.iMessageBlue : Color.iMessageGray)
                     )
-                    .padding(.bottom, showTail ? 3 : 0) // Extra space for tail
+                    .padding(.bottom, showTail ? 3 : 0)
             }
             
             if !message.isFromMe {

@@ -283,7 +283,7 @@ struct HomeListView: View {
                     .padding(.top, 16)
                 }
                 
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     ForEach(groupedByDate, id: \.key) { group in
                         Section {
                             ForEach(group.links) { link in
@@ -306,6 +306,7 @@ struct HomeListView: View {
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .coordinateSpace(name: "scroll")
