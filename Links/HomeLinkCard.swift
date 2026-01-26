@@ -93,6 +93,14 @@ struct HomeLinkCard: View {
         let host = link.url.host ?? ""
         return host.contains("x.com") || host.contains("twitter.com")
     }
+    
+    private var cleanDomain: String {
+        var domain = (link.url.host ?? "").lowercased()
+        if domain.hasPrefix("www.") {
+            domain = String(domain.dropFirst(4))
+        }
+        return domain
+    }
 
     var body: some View {
         Group {
@@ -306,11 +314,29 @@ struct HomeLinkCard: View {
 
                 // Domain row
                 HStack(spacing: 4) {
-                    Image(systemName: "globe")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.7))
+                    if let faviconURLString = link.openGraphData?.faviconURL,
+                       let faviconURL = URL(string: faviconURLString) {
+                        AsyncImage(url: faviconURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 12, height: 12)
+                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                            default:
+                                Image(systemName: "globe")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                        }
+                    } else {
+                        Image(systemName: "globe")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
 
-                    Text((link.url.host ?? "").lowercased())
+                    Text(cleanDomain)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.7))
                         .lineLimit(1)

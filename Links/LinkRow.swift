@@ -24,6 +24,14 @@ struct LinkRow: View {
         let host = link.url.host ?? ""
         return host.contains("x.com") || host.contains("twitter.com")
     }
+    
+    private var cleanDomain: String {
+        var domain = (link.url.host ?? "").lowercased()
+        if domain.hasPrefix("www.") {
+            domain = String(domain.dropFirst(4))
+        }
+        return domain
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -106,11 +114,29 @@ struct LinkRow: View {
                                 .lineLimit(3)
                         }
 
-                        // Domain
-                        Text((link.url.host ?? "").uppercased())
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.gray)
+                        // Domain with optional favicon
+                        HStack(spacing: 4) {
+                            if let faviconURLString = link.openGraphData?.faviconURL,
+                               let faviconURL = URL(string: faviconURLString) {
+                                AsyncImage(url: faviconURL) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 12, height: 12)
+                                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                                    default:
+                                        EmptyView()
+                                    }
+                                }
+                            }
+                            
+                            Text(cleanDomain.uppercased())
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.gray)
+                        }
                     }
 
                     Spacer()

@@ -684,6 +684,7 @@ class MessageService {
                         imageURL: imageURL,
                         siteName: siteName,
                         url: url.absoluteString,
+                        faviconURL: iconURL,
                         twitterAuthorName: parsed.authorName,
                         twitterHandle: parsed.handle,
                         twitterLikes: parsed.likes,
@@ -697,7 +698,8 @@ class MessageService {
                     description: summary,
                     imageURL: imageURL,
                     siteName: siteName,
-                    url: url.absoluteString
+                    url: url.absoluteString,
+                    faviconURL: iconURL
                 )
             }
 
