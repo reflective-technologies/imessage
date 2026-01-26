@@ -1,13 +1,13 @@
 //
-//  imessageUITestsLaunchTests.swift
-//  imessageUITests
+//  LinksUITestsLaunchTests.swift
+//  LinksUITests
 //
 //  Created by hunter diamond on 1/22/26.
 //
 
 import XCTest
 
-final class imessageUITestsLaunchTests: XCTestCase {
+final class LinksUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

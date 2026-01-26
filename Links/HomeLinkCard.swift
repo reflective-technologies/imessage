@@ -1,6 +1,6 @@
 //
 //  HomeLinkCard.swift
-//  imessage
+//  Links
 //
 //  Created by hunter diamond on 1/23/26.
 //

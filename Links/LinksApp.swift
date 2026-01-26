@@ -1,6 +1,6 @@
 //
-//  imessageApp.swift
-//  imessage
+//  LinksApp.swift
+//  Links
 //
 //  Created by hunter diamond on 1/22/26.
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct imessageApp: App {
+struct LinksApp: App {
     init() {
         // Clean up expired cache entries on app launch
         OpenGraphCacheService.shared.clearExpiredCache()

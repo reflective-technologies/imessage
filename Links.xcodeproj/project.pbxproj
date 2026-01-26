@@ -12,50 +12,37 @@
 			containerPortal = 5A7B525E2F22B6D900DD3D03 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 5A7B52652F22B6D900DD3D03;
-			remoteInfo = imessage;
+			remoteInfo = Links;
 		};
 		5A7B527E2F22B6DB00DD3D03 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 5A7B525E2F22B6D900DD3D03 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 5A7B52652F22B6D900DD3D03;
-			remoteInfo = imessage;
+			remoteInfo = Links;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		5A7B52662F22B6D900DD3D03 /* imessage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = imessage.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		5A7B52732F22B6DB00DD3D03 /* imessageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = imessageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		5A7B527D2F22B6DB00DD3D03 /* imessageUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = imessageUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A7B52662F22B6D900DD3D03 /* Links.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Links.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A7B52732F22B6DB00DD3D03 /* LinksTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LinksTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A7B527D2F22B6DB00DD3D03 /* LinksUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LinksUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		5A4FA0B32F22B96C00B72619 /* Exceptions for "imessage" folder in "imessage" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 5A7B52652F22B6D900DD3D03 /* imessage */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		5A7B52682F22B6D900DD3D03 /* imessage */ = {
+		5A7B52682F22B6D900DD3D03 /* Links */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				5A4FA0B32F22B96C00B72619 /* Exceptions for "imessage" folder in "imessage" target */,
-			);
-			path = imessage;
+			path = Links;
 			sourceTree = "<group>";
 		};
-		5A7B52762F22B6DB00DD3D03 /* imessageTests */ = {
+		5A7B52762F22B6DB00DD3D03 /* LinksTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = imessageTests;
+			path = LinksTests;
 			sourceTree = "<group>";
 		};
-		5A7B52802F22B6DB00DD3D03 /* imessageUITests */ = {
+		5A7B52802F22B6DB00DD3D03 /* LinksUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = imessageUITests;
+			path = LinksUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -88,9 +75,9 @@
 		5A7B525D2F22B6D900DD3D03 = {
 			isa = PBXGroup;
 			children = (
-				5A7B52682F22B6D900DD3D03 /* imessage */,
-				5A7B52762F22B6DB00DD3D03 /* imessageTests */,
-				5A7B52802F22B6DB00DD3D03 /* imessageUITests */,
+				5A7B52682F22B6D900DD3D03 /* Links */,
+				5A7B52762F22B6DB00DD3D03 /* LinksTests */,
+				5A7B52802F22B6DB00DD3D03 /* LinksUITests */,
 				5A7B52672F22B6D900DD3D03 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,9 +85,9 @@
 		5A7B52672F22B6D900DD3D03 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				5A7B52662F22B6D900DD3D03 /* imessage.app */,
-				5A7B52732F22B6DB00DD3D03 /* imessageTests.xctest */,
-				5A7B527D2F22B6DB00DD3D03 /* imessageUITests.xctest */,
+				5A7B52662F22B6D900DD3D03 /* Links.app */,
+				5A7B52732F22B6DB00DD3D03 /* LinksTests.xctest */,
+				5A7B527D2F22B6DB00DD3D03 /* LinksUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -108,9 +95,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		5A7B52652F22B6D900DD3D03 /* imessage */ = {
+		5A7B52652F22B6D900DD3D03 /* Links */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5A7B52872F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "imessage" */;
+			buildConfigurationList = 5A7B52872F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "Links" */;
 			buildPhases = (
 				5A7B52622F22B6D900DD3D03 /* Sources */,
 				5A7B52632F22B6D900DD3D03 /* Frameworks */,
@@ -121,18 +108,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				5A7B52682F22B6D900DD3D03 /* imessage */,
+				5A7B52682F22B6D900DD3D03 /* Links */,
 			);
-			name = imessage;
+			name = Links;
 			packageProductDependencies = (
 			);
-			productName = imessage;
-			productReference = 5A7B52662F22B6D900DD3D03 /* imessage.app */;
+			productName = Links;
+			productReference = 5A7B52662F22B6D900DD3D03 /* Links.app */;
 			productType = "com.apple.product-type.application";
 		};
-		5A7B52722F22B6DB00DD3D03 /* imessageTests */ = {
+		5A7B52722F22B6DB00DD3D03 /* LinksTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5A7B528A2F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "imessageTests" */;
+			buildConfigurationList = 5A7B528A2F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "LinksTests" */;
 			buildPhases = (
 				5A7B526F2F22B6DB00DD3D03 /* Sources */,
 				5A7B52702F22B6DB00DD3D03 /* Frameworks */,
@@ -144,18 +131,18 @@
 				5A7B52752F22B6DB00DD3D03 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				5A7B52762F22B6DB00DD3D03 /* imessageTests */,
+				5A7B52762F22B6DB00DD3D03 /* LinksTests */,
 			);
-			name = imessageTests;
+			name = LinksTests;
 			packageProductDependencies = (
 			);
-			productName = imessageTests;
-			productReference = 5A7B52732F22B6DB00DD3D03 /* imessageTests.xctest */;
+			productName = LinksTests;
+			productReference = 5A7B52732F22B6DB00DD3D03 /* LinksTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		5A7B527C2F22B6DB00DD3D03 /* imessageUITests */ = {
+		5A7B527C2F22B6DB00DD3D03 /* LinksUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5A7B528D2F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "imessageUITests" */;
+			buildConfigurationList = 5A7B528D2F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "LinksUITests" */;
 			buildPhases = (
 				5A7B52792F22B6DB00DD3D03 /* Sources */,
 				5A7B527A2F22B6DB00DD3D03 /* Frameworks */,
@@ -167,13 +154,13 @@
 				5A7B527F2F22B6DB00DD3D03 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				5A7B52802F22B6DB00DD3D03 /* imessageUITests */,
+				5A7B52802F22B6DB00DD3D03 /* LinksUITests */,
 			);
-			name = imessageUITests;
+			name = LinksUITests;
 			packageProductDependencies = (
 			);
-			productName = imessageUITests;
-			productReference = 5A7B527D2F22B6DB00DD3D03 /* imessageUITests.xctest */;
+			productName = LinksUITests;
+			productReference = 5A7B527D2F22B6DB00DD3D03 /* LinksUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -199,7 +186,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 5A7B52612F22B6D900DD3D03 /* Build configuration list for PBXProject "imessage" */;
+			buildConfigurationList = 5A7B52612F22B6D900DD3D03 /* Build configuration list for PBXProject "Links" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -213,9 +200,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				5A7B52652F22B6D900DD3D03 /* imessage */,
-				5A7B52722F22B6DB00DD3D03 /* imessageTests */,
-				5A7B527C2F22B6DB00DD3D03 /* imessageUITests */,
+				5A7B52652F22B6D900DD3D03 /* Links */,
+				5A7B52722F22B6DB00DD3D03 /* LinksTests */,
+				5A7B527C2F22B6DB00DD3D03 /* LinksUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -271,12 +258,12 @@
 /* Begin PBXTargetDependency section */
 		5A7B52752F22B6DB00DD3D03 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 5A7B52652F22B6D900DD3D03 /* imessage */;
+			target = 5A7B52652F22B6D900DD3D03 /* Links */;
 			targetProxy = 5A7B52742F22B6DB00DD3D03 /* PBXContainerItemProxy */;
 		};
 		5A7B527F2F22B6DB00DD3D03 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 5A7B52652F22B6D900DD3D03 /* imessage */;
+			target = 5A7B52652F22B6D900DD3D03 /* Links */;
 			targetProxy = 5A7B527E2F22B6DB00DD3D03 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -407,7 +394,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = imessage/imessage.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Links/Links.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -417,14 +404,14 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = imessage/Info.plist;
+				INFOPLIST_FILE = Links/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.imessage;
+				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.Links;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -441,7 +428,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = imessage/imessage.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Links/Links.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -451,14 +438,14 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = imessage/Info.plist;
+				INFOPLIST_FILE = Links/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.imessage;
+				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.Links;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -480,14 +467,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.imessageTests;
+				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.LinksTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/imessage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/imessage";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Links.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Links";
 			};
 			name = Debug;
 		};
@@ -501,14 +488,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.imessageTests;
+				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.LinksTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/imessage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/imessage";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Links.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Links";
 			};
 			name = Release;
 		};
@@ -520,14 +507,14 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.imessageUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.LinksUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = imessage;
+				TEST_TARGET_NAME = Links;
 			};
 			name = Debug;
 		};
@@ -539,21 +526,21 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.imessageUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = reflectivetech.LinksUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = imessage;
+				TEST_TARGET_NAME = Links;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		5A7B52612F22B6D900DD3D03 /* Build configuration list for PBXProject "imessage" */ = {
+		5A7B52612F22B6D900DD3D03 /* Build configuration list for PBXProject "Links" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5A7B52852F22B6DB00DD3D03 /* Debug */,
@@ -562,7 +549,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5A7B52872F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "imessage" */ = {
+		5A7B52872F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "Links" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5A7B52882F22B6DB00DD3D03 /* Debug */,
@@ -571,7 +558,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5A7B528A2F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "imessageTests" */ = {
+		5A7B528A2F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "LinksTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5A7B528B2F22B6DB00DD3D03 /* Debug */,
@@ -580,7 +567,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5A7B528D2F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "imessageUITests" */ = {
+		5A7B528D2F22B6DB00DD3D03 /* Build configuration list for PBXNativeTarget "LinksUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5A7B528E2F22B6DB00DD3D03 /* Debug */,

@@ -1,13 +1,13 @@
 //
-//  imessageUITests.swift
-//  imessageUITests
+//  LinksUITests.swift
+//  LinksUITests
 //
 //  Created by hunter diamond on 1/22/26.
 //
 
 import XCTest
 
-final class imessageUITests: XCTestCase {
+final class LinksUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

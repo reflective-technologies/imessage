@@ -1,6 +1,6 @@
 //
 //  OpenGraphCacheService.swift
-//  imessage
+//  Links
 //
 //  Created by hunter diamond on 1/22/26.
 //
@@ -17,7 +17,7 @@ class OpenGraphCacheService {
     private init() {
         // Store cache in Application Support
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let appFolder = appSupport.appendingPathComponent("imessage")
+        let appFolder = appSupport.appendingPathComponent("Links")
 
         // Create directory if needed
         try? FileManager.default.createDirectory(at: appFolder, withIntermediateDirectories: true)
