@@ -352,26 +352,27 @@ struct LinkListView: View {
         .navigationTitle(selectedCategory.rawValue)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 12) {
-                    // View mode toggle (grid/list)
-                    Picker("View", selection: $viewModeStore.viewMode) {
-                        ForEach(ViewMode.allCases, id: \.self) { mode in
-                            Image(systemName: mode.icon)
-                                .tag(mode)
-                        }
+                // View mode toggle (grid/list)
+                Picker("View", selection: $viewModeStore.viewMode) {
+                    ForEach(ViewMode.allCases, id: \.self) { mode in
+                        Image(systemName: mode.icon)
+                            .tag(mode)
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 100)
-                    
-                    if canShowMessagePanel && selectedLink != nil {
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedLink = nil
-                            }
-                        }) {
-                            Label("Close Context", systemImage: "xmark")
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 100)
+            }
+            
+            ToolbarItem(placement: .primaryAction) {
+                if canShowMessagePanel && selectedLink != nil {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedLink = nil
                         }
+                    }) {
+                        Image(systemName: "xmark")
                     }
+                    .help("Close Context")
                 }
             }
         }

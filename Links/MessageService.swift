@@ -69,7 +69,9 @@ class MessageService {
             throw MessageServiceError.permissionDenied
         }
 
-        let result = sqlite3_open(dbPath, &db)
+        // Use SQLITE_OPEN_READONLY to properly handle WAL mode without conflicts
+        // This ensures we can read recent messages from the WAL file
+        let result = sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil)
         guard result == SQLITE_OK else {
             let errorMessage = String(cString: sqlite3_errmsg(db))
             print("Error opening database: \(errorMessage)")
@@ -79,6 +81,9 @@ class MessageService {
         defer {
             sqlite3_close(db)
         }
+        
+        // Ensure we read uncommitted changes from WAL
+        sqlite3_exec(db, "PRAGMA query_only = ON;", nil, nil, nil)
 
         let query = """
             SELECT
@@ -236,7 +241,8 @@ class MessageService {
             throw MessageServiceError.permissionDenied
         }
         
-        let result = sqlite3_open(dbPath, &db)
+        // Use SQLITE_OPEN_READONLY to properly handle WAL mode without conflicts
+        let result = sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil)
         guard result == SQLITE_OK else {
             let errorMessage = String(cString: sqlite3_errmsg(db))
             throw MessageServiceError.databaseOpenError(errorMessage)
@@ -245,6 +251,9 @@ class MessageService {
         defer {
             sqlite3_close(db)
         }
+        
+        // Ensure we read uncommitted changes from WAL
+        sqlite3_exec(db, "PRAGMA query_only = ON;", nil, nil, nil)
         
         // Get the chat_id for this message first
         let chatQuery = """
@@ -554,10 +563,10 @@ class MessageService {
                 var score = 0
                 
                 // Check if it's an image URL
-                let imageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+                let imageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".bmp", ".tiff"]
                 let hasImageExtension = imageExtensions.contains { lowercased.contains($0) }
                 
-                // Must have image extension or be from known image CDN
+                // Known image CDNs get a scoring boost (but are not required)
                 let knownImageCDNs = [
                     "pbs.twimg.com/media",           // Twitter media
                     "pbs.twimg.com/ext_tw_video",    // Twitter video thumbs
@@ -576,11 +585,21 @@ class MessageService {
                     "wp.com",                        // WordPress
                     "githubusercontent.com",         // GitHub
                     "twimg.com",                     // Twitter
+                    "akamaized.net",                 // Akamai CDN
+                    "fastly.net",                    // Fastly CDN
+                    "cdn.shopify.com",               // Shopify
+                    "squarespace-cdn.com",           // Squarespace
+                    "notion.so",                     // Notion
+                    "unsplash.com",                  // Unsplash
+                    "images.unsplash.com",           // Unsplash images
                 ]
                 
                 let isFromKnownCDN = knownImageCDNs.contains { lowercased.contains($0) }
                 
-                guard hasImageExtension || isFromKnownCDN else { continue }
+                // Boost URLs from known CDNs
+                if isFromKnownCDN {
+                    score += 25
+                }
                 
                 // Score the URL - higher is better (more likely to be the main content image)
                 
