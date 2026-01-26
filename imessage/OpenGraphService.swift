@@ -33,7 +33,6 @@ class OpenGraphService {
 
         // Check persistent cache first (like iMessage does)
         if let cached = OpenGraphCacheService.shared.getCachedData(for: url) {
-            print("📦 Using cached OpenGraph data for \(urlString)")
             return cached
         }
 
@@ -47,16 +46,11 @@ class OpenGraphService {
         let isTwitter = host == "x.com" || host == "twitter.com" || host == "www.x.com" || host == "www.twitter.com"
 
         if isTwitter {
-            print("🔍 Detected Twitter/X URL: \(url)")
             if let twitterData = await fetchTwitterMetadata(for: url) {
-                print("✅ Got Twitter metadata with Twitterbot UA")
                 cache[urlString] = twitterData
-                // Save to persistent cache
                 OpenGraphCacheService.shared.cacheData(twitterData, for: url)
-                print("💾 Saved Twitter data to persistent cache")
                 return twitterData
             } else {
-                print("⚠️  Twitter metadata fetch failed")
                 return nil
             }
         }
@@ -64,63 +58,27 @@ class OpenGraphService {
         do {
             let (data, response) = try await session.data(from: url)
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ Not an HTTP response for \(urlString)")
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200,
+                  let html = String(data: data, encoding: .utf8) else {
                 return nil
-            }
-
-            guard httpResponse.statusCode == 200 else {
-                print("❌ HTTP \(httpResponse.statusCode) for \(urlString)")
-                return nil
-            }
-
-            guard let html = String(data: data, encoding: .utf8) else {
-                print("❌ Failed to decode HTML for \(urlString)")
-                return nil
-            }
-
-            // Debug: Check if we got actual HTML or JavaScript redirect
-            let htmlPreview = String(html.prefix(800))
-            let hasTwitterTags = html.contains("twitter:title") || html.contains("twitter:image")
-            let hasOGTags = html.contains("og:title") || html.contains("og:image")
-
-            if hasTwitterTags || hasOGTags {
-                print("📄 HTML contains meta tags for \(urlString)")
-                print("   Twitter tags: \(hasTwitterTags), OG tags: \(hasOGTags)")
-            } else {
-                print("⚠️  HTML may not contain meta tags for \(urlString)")
-                if url.host?.contains("x.com") == true || url.host?.contains("twitter.com") == true {
-                    print("📄 X.com response (first 800 chars): \(htmlPreview)")
-                }
             }
 
             let ogData = parseOpenGraph(from: html, url: urlString)
 
             if ogData.hasData {
-                print("✅ Found OpenGraph data for \(urlString)")
-                print("   Title: \(ogData.title ?? "none")")
-                print("   Image: \(ogData.imageURL ?? "none")")
-                print("   Site: \(ogData.siteName ?? "none")")
-
-                // Save to persistent cache (like iMessage does)
                 OpenGraphCacheService.shared.cacheData(ogData, for: url)
-                print("💾 Saved to persistent cache")
-            } else {
-                print("⚠️  No OpenGraph data found for \(urlString)")
             }
 
             cache[urlString] = ogData
             return ogData
 
         } catch {
-            print("❌ Failed to fetch OpenGraph data for \(urlString): \(error)")
             return nil
         }
     }
 
     private func fetchTwitterMetadata(for url: URL) async -> OpenGraphData? {
-        print("🐦 Fetching Twitter metadata with Twitterbot UA: \(url)")
-
         // Create a custom URLSession with Twitterbot User-Agent
         // Twitter serves full HTML with meta tags when it sees Twitterbot
         let config = URLSessionConfiguration.default
@@ -137,46 +95,17 @@ class OpenGraphService {
         do {
             let (data, response) = try await twitterSession.data(from: url)
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("   ❌ Not an HTTP response")
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200,
+                  let html = String(data: data, encoding: .utf8) else {
                 return nil
             }
 
-            print("   📡 HTTP status: \(httpResponse.statusCode)")
-
-            guard httpResponse.statusCode == 200 else {
-                print("   ❌ HTTP \(httpResponse.statusCode)")
-                return nil
-            }
-
-            guard let html = String(data: data, encoding: .utf8) else {
-                print("   ❌ Failed to decode HTML")
-                return nil
-            }
-
-            // Check if we got meta tags
-            let hasTwitterTags = html.contains("twitter:title") || html.contains("twitter:image")
-            let hasOGTags = html.contains("og:title") || html.contains("og:image")
-
-            print("   📄 Got HTML with Twitter tags: \(hasTwitterTags), OG tags: \(hasOGTags)")
-
-            // Parse the HTML for OpenGraph/Twitter card tags
             let ogData = parseOpenGraph(from: html, url: url.absoluteString)
-
-            if ogData.hasData {
-                print("   ✅ Successfully extracted Twitter metadata")
-                print("      Title: \(ogData.title ?? "none")")
-                print("      Description: \(ogData.description?.prefix(100) ?? "none")")
-                print("      Image: \(ogData.imageURL ?? "none")")
-                return ogData
-            } else {
-                print("   ⚠️  No OpenGraph data found in HTML")
-            }
+            return ogData.hasData ? ogData : nil
         } catch {
-            print("   ❌ Failed to fetch Twitter metadata: \(error)")
+            return nil
         }
-
-        return nil
     }
 
     private func parseOpenGraph(from html: String, url: String) -> OpenGraphData {

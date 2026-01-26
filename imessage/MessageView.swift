@@ -140,6 +140,11 @@ struct RealMessageListView: View {
     let messages: [Message]
     let highlightedMessageId: Int?
     
+    /// Check if this is a group chat based on the first message
+    private var isGroupChat: Bool {
+        messages.first?.isGroupChat ?? false
+    }
+    
     init(messages: [Message], highlightedMessageId: Int? = nil) {
         self.messages = messages
         self.highlightedMessageId = highlightedMessageId
@@ -158,13 +163,28 @@ struct RealMessageListView: View {
                                     .padding(.bottom, 8)
                             }
                             
-                            // Message bubble - show tail on last message in sequence (both sent and received)
+                            // Show sender name for group chats when sender changes
+                            if isGroupChat && !message.isFromMe && shouldShowSenderName(for: index) {
+                                HStack {
+                                    Text(message.senderDisplayName)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                        .padding(.leading, 44) // Align with message bubble (avatar width + spacing)
+                                    Spacer()
+                                }
+                                .padding(.top, 4)
+                            }
+                            
+                            // Message bubble
                             let isLast = isLastInSequence(for: index)
                             let isHighlighted = message.id == highlightedMessageId
+                            let showAvatar = isGroupChat && !message.isFromMe && isLast
+                            
                             RealMessageBubbleView(
                                 message: message,
                                 showTail: isLast,
-                                isHighlighted: isHighlighted
+                                isHighlighted: isHighlighted,
+                                showAvatar: showAvatar
                             )
                             .id(message.id)
                         }
@@ -195,6 +215,30 @@ struct RealMessageListView: View {
         return timeDifference > 3600
     }
     
+    /// For group chats: show sender name when sender changes from previous message
+    private func shouldShowSenderName(for index: Int) -> Bool {
+        guard index > 0 else { return true }
+        let currentMessage = messages[index]
+        let previousMessage = messages[index - 1]
+        
+        // If previous was from me, show sender name
+        if previousMessage.isFromMe {
+            return true
+        }
+        
+        // If sender changed, show name
+        if currentMessage.senderIdentifier != previousMessage.senderIdentifier {
+            return true
+        }
+        
+        // If timestamp shown, also show sender name
+        if shouldShowTimestamp(for: index) {
+            return true
+        }
+        
+        return false
+    }
+    
     private func isLastInSequence(for index: Int) -> Bool {
         let currentMessage = messages[index]
         
@@ -202,10 +246,19 @@ struct RealMessageListView: View {
         
         let nextMessage = messages[index + 1]
         
+        // Different sender direction
         if nextMessage.isFromMe != currentMessage.isFromMe {
             return true
         }
         
+        // For group chats: different sender within received messages
+        if isGroupChat && !currentMessage.isFromMe {
+            if nextMessage.senderIdentifier != currentMessage.senderIdentifier {
+                return true
+            }
+        }
+        
+        // Large time gap
         let timeDifference = nextMessage.date.timeIntervalSince(currentMessage.date)
         if timeDifference > 3600 {
             return true
@@ -220,20 +273,35 @@ struct RealMessageBubbleView: View {
     let message: Message
     let showTail: Bool
     let isHighlighted: Bool
+    let showAvatar: Bool
     @State private var detectedURL: URL?
     @State private var openGraphData: OpenGraphData?
     @State private var isLoadingOG = false
     
-    init(message: Message, showTail: Bool, isHighlighted: Bool = false) {
+    init(message: Message, showTail: Bool, isHighlighted: Bool = false, showAvatar: Bool = false) {
         self.message = message
         self.showTail = showTail
         self.isHighlighted = isHighlighted
+        self.showAvatar = showAvatar
     }
     
     var body: some View {
-        HStack {
+        HStack(alignment: .bottom, spacing: 8) {
             if message.isFromMe {
                 Spacer(minLength: 60)
+            } else {
+                // Avatar for group chats (or placeholder to maintain alignment)
+                if showAvatar {
+                    ContactAvatarView(
+                        name: message.senderDisplayName,
+                        profileImage: message.senderPhoto,
+                        size: 28
+                    )
+                } else {
+                    // Invisible spacer to maintain alignment
+                    Color.clear
+                        .frame(width: 28, height: 28)
+                }
             }
             
             if let text = message.text {
@@ -280,8 +348,10 @@ struct RealMessageBubbleView: View {
                 }
             }
             
-            if !message.isFromMe {
-                Spacer(minLength: 60)
+            if message.isFromMe {
+                // No avatar spacer needed for sent messages
+            } else {
+                Spacer(minLength: 40)
             }
         }
         .onAppear {
@@ -310,6 +380,14 @@ struct RealMessageBubbleView: View {
     private func loadOpenGraphData(for url: URL) {
         isLoadingOG = true
         
+        // First try to extract from Apple's cached payload data (contains Twitter-specific info)
+        if let cachedData = MessageService.shared.extractOpenGraphFromPayload(message.payloadData, for: url) {
+            self.openGraphData = cachedData
+            self.isLoadingOG = false
+            return
+        }
+        
+        // Fall back to fetching fresh OpenGraph data
         Task {
             let data = await OpenGraphService.shared.fetchMetadata(for: url)
             await MainActor.run {
@@ -342,7 +420,20 @@ struct LinkPreviewBubble: View {
     let isFromMe: Bool
     let isLoading: Bool
     
+    private var isTwitterLink: Bool {
+        let host = url.host ?? ""
+        return host.contains("x.com") || host.contains("twitter.com")
+    }
+    
     var body: some View {
+        if isTwitterLink, let ogData = openGraphData, ogData.isTwitter {
+            TwitterLinkPreviewBubble(url: url, openGraphData: ogData, isFromMe: isFromMe)
+        } else {
+            regularLinkPreview
+        }
+    }
+    
+    private var regularLinkPreview: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Image preview
             if let imageURLString = openGraphData?.imageURL,
@@ -403,6 +494,137 @@ struct LinkPreviewBubble: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isFromMe ? Color(hex: "#003450") : Color.iMessageGray)
+        }
+        .frame(width: 260)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Twitter Link Preview Bubble (iMessage style with cached tweet data)
+struct TwitterLinkPreviewBubble: View {
+    let url: URL
+    let openGraphData: OpenGraphData
+    let isFromMe: Bool
+    
+    private var authorDisplay: String {
+        if let name = openGraphData.twitterAuthorName, let handle = openGraphData.twitterHandle {
+            return "\(name) \(handle)"
+        } else if let title = openGraphData.title {
+            // Title might be "Author (@handle)\n11K likes..."
+            if let firstLine = title.components(separatedBy: "\n").first {
+                return firstLine
+            }
+            return title
+        }
+        return "X"
+    }
+    
+    private var engagementDisplay: String? {
+        if let likes = openGraphData.twitterLikes, let replies = openGraphData.twitterReplies {
+            return "\(likes) likes · \(replies) replies"
+        } else if let likes = openGraphData.twitterLikes {
+            return "\(likes) likes"
+        } else if let title = openGraphData.title {
+            let lines = title.components(separatedBy: "\n")
+            if lines.count > 1 {
+                return lines[1]
+            }
+        }
+        return nil
+    }
+    
+    private var hasMediaImage: Bool {
+        if let imageURL = openGraphData.imageURL {
+            // Check that it's not just a profile image
+            return !imageURL.contains("profile_images")
+        }
+        return false
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Media image at top (if available and not just profile pic)
+            if hasMediaImage,
+               let imageURLString = openGraphData.imageURL,
+               let imageURL = URL(string: imageURLString) {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 140)
+                            .clipped()
+                    case .empty:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 140)
+                            .overlay(ProgressView().scaleEffect(0.7))
+                    case .failure:
+                        EmptyView()
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+            
+            // Tweet content
+            VStack(alignment: .leading, spacing: 8) {
+                // Tweet text (description)
+                if let description = openGraphData.description, !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                
+                // Author row with profile pic
+                HStack(spacing: 6) {
+                    // Profile picture
+                    if let profileURL = openGraphData.twitterProfileImageURL,
+                       let imageURL = URL(string: profileURL) {
+                        AsyncImage(url: imageURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 16, height: 16)
+                                    .clipShape(Circle())
+                            default:
+                                Circle()
+                                    .fill(Color.gray.opacity(0.3))
+                                    .frame(width: 16, height: 16)
+                            }
+                        }
+                    }
+                    
+                    Text(authorDisplay)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                        .lineLimit(1)
+                }
+                
+                // Engagement stats
+                if let engagement = engagementDisplay {
+                    Text(engagement)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                
+                // Domain
+                Text("x.com")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isFromMe ? Color(hex: "#003450") : Color.iMessageGray)
         }

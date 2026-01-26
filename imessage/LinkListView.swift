@@ -238,7 +238,12 @@ struct LinkListView: View {
                         .padding()
                     } else if selectedCategory == .home {
                         // Home view with carousels
-                        HomeView(links: links, selectedCategory: $selectedCategory)
+                        HomeView(
+                            links: links,
+                            selectedCategory: $selectedCategory,
+                            selectedLink: $selectedLink,
+                            canShowMessagePanel: canShowMessagePanel
+                        )
                     } else {
                         VStack(spacing: 0) {
                             // Link list

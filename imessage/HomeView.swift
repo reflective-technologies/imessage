@@ -25,7 +25,9 @@ enum HomeViewMode: String, CaseIterable {
 struct HomeView: View {
     let links: [ExtractedLink]
     @Binding var selectedCategory: LinkCategory
-    @State private var contactsAuthStatus: CNAuthorizationStatus = ContactService.shared.authorizationStatus
+    @Binding var selectedLink: ExtractedLink?
+    let canShowMessagePanel: Bool
+    @State private var hasContactsAccess: Bool = ContactService.shared.hasAccess
     @State private var viewMode: HomeViewMode = .cards
     
     /// Recent links sorted by date (most recent first)
@@ -40,12 +42,12 @@ struct HomeView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 32) {
                         // Contacts permission banner (if not authorized)
-                        if contactsAuthStatus != .authorized {
+                        if !hasContactsAccess {
                             ContactsPermissionBanner(
-                                status: contactsAuthStatus,
+                                status: ContactService.shared.authorizationStatus,
                                 onRequestAccess: {
                                     ContactService.shared.requestAccess { granted in
-                                        contactsAuthStatus = ContactService.shared.authorizationStatus
+                                        hasContactsAccess = ContactService.shared.hasAccess
                                     }
                                 }
                             )
@@ -56,6 +58,8 @@ struct HomeView: View {
                         if !recentLinks.isEmpty {
                             RecentCarouselSection(
                                 links: recentLinks,
+                                selectedLink: $selectedLink,
+                                canShowMessagePanel: canShowMessagePanel,
                                 onSeeAll: {
                                     viewMode = .list
                                 }
@@ -69,6 +73,8 @@ struct HomeView: View {
                                 CategoryCarouselSection(
                                     category: category,
                                     links: categoryLinks,
+                                    selectedLink: $selectedLink,
+                                    canShowMessagePanel: canShowMessagePanel,
                                     onSeeAll: {
                                         selectedCategory = category
                                     }
@@ -80,7 +86,12 @@ struct HomeView: View {
                 }
             } else {
                 // List view - show all links with date grouping
-                HomeListView(links: recentLinks, contactsAuthStatus: $contactsAuthStatus)
+                HomeListView(
+                    links: recentLinks,
+                    hasContactsAccess: $hasContactsAccess,
+                    selectedLink: $selectedLink,
+                    canShowMessagePanel: canShowMessagePanel
+                )
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -96,6 +107,14 @@ struct HomeView: View {
                 .frame(width: 100)
             }
         }
+        .onAppear {
+            // Refresh contacts authorization status when view appears
+            hasContactsAccess = ContactService.shared.hasAccess
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .contactsDidLoad)) { _ in
+            // Update when contacts finish loading (means permission was granted)
+            hasContactsAccess = ContactService.shared.hasAccess
+        }
     }
     
     private func linksForCategory(_ category: LinkCategory) -> [ExtractedLink] {
@@ -108,6 +127,8 @@ struct HomeView: View {
 // MARK: - Recent Carousel Section
 struct RecentCarouselSection: View {
     let links: [ExtractedLink]
+    @Binding var selectedLink: ExtractedLink?
+    let canShowMessagePanel: Bool
     let onSeeAll: () -> Void
     
     var body: some View {
@@ -150,7 +171,19 @@ struct RecentCarouselSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(links.prefix(15)) { link in
-                        HomeLinkCard(link: link)
+                        HomeLinkCard(
+                            link: link,
+                            isSelected: canShowMessagePanel && selectedLink?.id == link.id,
+                            onSelect: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if selectedLink?.id == link.id {
+                                        selectedLink = nil
+                                    } else {
+                                        selectedLink = link
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
                 .padding(.horizontal, 24)
@@ -163,6 +196,8 @@ struct RecentCarouselSection: View {
 struct CategoryCarouselSection: View {
     let category: LinkCategory
     let links: [ExtractedLink]
+    @Binding var selectedLink: ExtractedLink?
+    let canShowMessagePanel: Bool
     let onSeeAll: () -> Void
     
     var body: some View {
@@ -205,7 +240,19 @@ struct CategoryCarouselSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(links.prefix(10)) { link in
-                        HomeLinkCard(link: link)
+                        HomeLinkCard(
+                            link: link,
+                            isSelected: canShowMessagePanel && selectedLink?.id == link.id,
+                            onSelect: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if selectedLink?.id == link.id {
+                                        selectedLink = nil
+                                    } else {
+                                        selectedLink = link
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
                 .padding(.horizontal, 24)
@@ -232,7 +279,9 @@ struct CategoryCarouselSection: View {
 // MARK: - Home List View (All links in list format)
 struct HomeListView: View {
     let links: [ExtractedLink]
-    @Binding var contactsAuthStatus: CNAuthorizationStatus
+    @Binding var hasContactsAccess: Bool
+    @Binding var selectedLink: ExtractedLink?
+    let canShowMessagePanel: Bool
     
     private var groupedByDate: [(key: Date, links: [ExtractedLink])] {
         let calendar = Calendar.current
@@ -246,12 +295,12 @@ struct HomeListView: View {
         ScrollView {
             VStack(spacing: 0) {
                 // Contacts permission banner (if not authorized)
-                if contactsAuthStatus != .authorized {
+                if !hasContactsAccess {
                     ContactsPermissionBanner(
-                        status: contactsAuthStatus,
+                        status: ContactService.shared.authorizationStatus,
                         onRequestAccess: {
                             ContactService.shared.requestAccess { granted in
-                                contactsAuthStatus = ContactService.shared.authorizationStatus
+                                hasContactsAccess = ContactService.shared.hasAccess
                             }
                         }
                     )
@@ -265,9 +314,15 @@ struct HomeListView: View {
                             ForEach(group.links) { link in
                                 LinkRow(
                                     link: link,
-                                    isSelected: false,
+                                    isSelected: canShowMessagePanel && selectedLink?.id == link.id,
                                     onSelect: {
-                                        NSWorkspace.shared.open(link.url)
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            if selectedLink?.id == link.id {
+                                                selectedLink = nil
+                                            } else {
+                                                selectedLink = link
+                                            }
+                                        }
                                     }
                                 )
                             }
@@ -397,7 +452,9 @@ struct ContactsPermissionBanner: View {
 #Preview {
     HomeView(
         links: [],
-        selectedCategory: .constant(.home)
+        selectedCategory: .constant(.home),
+        selectedLink: .constant(nil),
+        canShowMessagePanel: true
     )
     .frame(width: 800, height: 600)
 }

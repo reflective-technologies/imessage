@@ -207,7 +207,9 @@ private extension Message {
         isFromMe: true,
         chatIdentifier: "iMessage;+15551234567",
         contactName: "Me",
-        payloadData: nil
+        payloadData: nil,
+        senderIdentifier: nil,
+        senderName: nil
     )
 
     static let sampleFromOther = Message(
@@ -217,7 +219,9 @@ private extension Message {
         isFromMe: false,
         chatIdentifier: "iMessage;+15557654321",
         contactName: "Taylor Swift",
-        payloadData: nil
+        payloadData: nil,
+        senderIdentifier: "+15557654321",
+        senderName: "Taylor Swift"
     )
 }
 

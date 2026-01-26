@@ -23,7 +23,8 @@ class ContactService {
     private init() {
         // Don't automatically request access - wait for explicit user action
         // Check if we already have access and load contacts if so
-        if CNContactStore.authorizationStatus(for: .contacts) == .authorized {
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        if hasContactsAccess(status) {
             loadAllContacts()
         }
     }
@@ -33,17 +34,53 @@ class ContactService {
         CNContactStore.authorizationStatus(for: .contacts)
     }
     
+    /// Returns true if we have contacts access (authorized or limited)
+    var hasAccess: Bool {
+        hasContactsAccess(authorizationStatus)
+    }
+    
+    /// Check if a status grants contacts access (authorized or limited on macOS 14+)
+    private func hasContactsAccess(_ status: CNAuthorizationStatus) -> Bool {
+        switch status {
+        case .authorized, .limited:
+            return true
+        case .denied, .restricted, .notDetermined:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+    
     /// Request contacts access - call this from a user-initiated action (e.g., button tap)
     func requestAccess(completion: @escaping (Bool) -> Void) {
-        contactStore.requestAccess(for: .contacts) { [weak self] granted, error in
-            if granted {
-                print("Contact access granted")
-                self?.loadAllContacts()
-            } else {
-                print("Contact access denied: \(error?.localizedDescription ?? "unknown error")")
+        // Check if we already have authorization - don't prompt again
+        let currentStatus = CNContactStore.authorizationStatus(for: .contacts)
+        
+        if hasContactsAccess(currentStatus) {
+            // Already authorized, just ensure contacts are loaded
+            if !isLoaded {
+                loadAllContacts()
             }
             DispatchQueue.main.async {
-                completion(granted)
+                completion(true)
+            }
+            return
+        }
+        
+        // Only request if not determined yet
+        if currentStatus == .notDetermined {
+            contactStore.requestAccess(for: .contacts) { [weak self] granted, error in
+                if granted {
+                    self?.loadAllContacts()
+                }
+                DispatchQueue.main.async {
+                    completion(granted)
+                }
+            }
+        } else {
+            // Status is denied or restricted - can't request again
+            DispatchQueue.main.async {
+                completion(false)
             }
         }
     }

@@ -15,8 +15,31 @@ struct Message: Identifiable {
     let date: Date
     let isFromMe: Bool
     let chatIdentifier: String?
-    let contactName: String?
+    let contactName: String?  // For the overall chat/conversation name
     let payloadData: Data?
+    let senderIdentifier: String?  // The individual sender's handle (phone/email) for group chats
+    let senderName: String?  // Resolved contact name for the individual sender
+    
+    /// Whether this message is from a group chat
+    var isGroupChat: Bool {
+        chatIdentifier?.hasPrefix("chat") ?? false
+    }
+    
+    /// Display name for the sender of this specific message
+    var senderDisplayName: String {
+        if isFromMe {
+            return "Me"
+        }
+        return senderName ?? senderIdentifier ?? contactName ?? "Unknown"
+    }
+    
+    /// Get the sender's photo data
+    var senderPhoto: Data? {
+        if isFromMe {
+            return nil
+        }
+        return ContactService.shared.getContactPhoto(for: senderIdentifier)
+    }
 }
 
 class ExtractedLink: Identifiable, ObservableObject {

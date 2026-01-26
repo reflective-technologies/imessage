@@ -82,6 +82,8 @@ extension NSImage {
 
 struct HomeLinkCard: View {
     @ObservedObject var link: ExtractedLink
+    let isSelected: Bool
+    let onSelect: () -> Void
     @State private var dominantColor: Color = Color(hex: "#2B2E30")
 
     private let cardWidth: CGFloat = 320
@@ -104,11 +106,11 @@ struct HomeLinkCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                .stroke(isSelected ? Color.blue : Color.white.opacity(0.1), lineWidth: isSelected ? 3 : 1)
         )
-        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+        .shadow(color: isSelected ? .blue.opacity(0.3) : .black.opacity(0.3), radius: 8, x: 0, y: 4)
         .onTapGesture {
-            NSWorkspace.shared.open(link.url)
+            onSelect()
         }
         .onAppear {
             link.loadOpenGraphData()
@@ -118,8 +120,10 @@ struct HomeLinkCard: View {
     // MARK: - Twitter Card View
     @ViewBuilder
     private func twitterCardView(ogData: OpenGraphData) -> some View {
-        ZStack(alignment: .bottom) {
-            // Background - media image or dark gray
+        let hasImage = ogData.imageURL != nil
+        
+        ZStack {
+            // Background - media image or solid default color
             if let imageURLString = ogData.imageURL,
                let imageURL = URL(string: imageURLString) {
                 CachedAsyncImage(url: imageURL) { phase in
@@ -132,29 +136,31 @@ struct HomeLinkCard: View {
                             .clipped()
                     default:
                         Rectangle()
-                            .fill(Color(hex: "#1C1C1E"))
+                            .fill(Color(hex: "#2B2E30"))
                     }
                 } onImageLoaded: { nsImage in
                     dominantColor = nsImage.dominantColor()
                 }
             } else {
                 Rectangle()
-                    .fill(Color(hex: "#1C1C1E"))
+                    .fill(Color(hex: "#2B2E30"))
             }
 
-            // Gradient overlay for text readability
-            VStack(spacing: 0) {
-                Spacer()
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: Color.black.opacity(0.7), location: 0.3),
-                        .init(color: Color.black.opacity(0.95), location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: cardHeight * 0.7)
+            // Gradient overlay only when there's an image
+            if hasImage {
+                VStack(spacing: 0) {
+                    Spacer()
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: Color.black.opacity(0.7), location: 0.3),
+                            .init(color: Color.black.opacity(0.95), location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: cardHeight * 0.7)
+                }
             }
 
             // Content
@@ -166,11 +172,11 @@ struct HomeLinkCard: View {
                     Text(description)
                         .font(.system(size: 14))
                         .foregroundColor(.white)
-                        .lineLimit(4)
+                        .lineLimit(hasImage ? 4 : 6)
                         .multilineTextAlignment(.leading)
                 }
 
-                // Author row with profile pic
+                // Author row with profile pic, handle, and x.com link
                 HStack(spacing: 6) {
                     if let profileURL = ogData.twitterProfileImageURL,
                        let imageURL = URL(string: profileURL) {
@@ -202,60 +208,32 @@ struct HomeLinkCard: View {
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.7))
                     }
-                }
-
-                // Engagement stats row
-                HStack(spacing: 12) {
-                    if let likes = ogData.twitterLikes {
-                        HStack(spacing: 3) {
-                            Image(systemName: "heart")
-                                .font(.system(size: 10))
-                            Text("\(likes)")
-                                .font(.system(size: 11))
-                        }
-                        .foregroundColor(.white.opacity(0.7))
-                    }
-
-                    if let replies = ogData.twitterReplies {
-                        HStack(spacing: 3) {
-                            Image(systemName: "bubble.right")
-                                .font(.system(size: 10))
-                            Text("\(replies)")
-                                .font(.system(size: 11))
-                        }
-                        .foregroundColor(.white.opacity(0.7))
-                    }
-
+                    
                     Spacer()
-
+                    
                     Text("x.com")
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.5))
                 }
-
-                // Sender row
-                HStack(spacing: 6) {
-                    ContactAvatarView(
-                        name: link.displayContactName,
-                        profileImage: link.contactPhoto,
-                        size: 16
-                    )
-
-                    Text(link.displayContactName)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.7))
-                        .lineLimit(1)
-                }
-                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
+            
+            // "From {Name}" pill in top-left
+            VStack {
+                HStack {
+                    SenderPill(name: link.displayContactName, profileImage: link.contactPhoto)
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding(12)
         }
     }
 
     // MARK: - Regular Card View
     private var regularCardView: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             // Background image
             if let imageURLString = link.openGraphData?.imageURL,
                let imageURL = URL(string: imageURLString) {
@@ -319,38 +297,76 @@ struct HomeLinkCard: View {
                     .multilineTextAlignment(.leading)
                     .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
 
-                // Sender and domain row
-                HStack(spacing: 8) {
-                    // Sender avatar and name
-                    ContactAvatarView(
-                        name: link.displayContactName,
-                        profileImage: link.contactPhoto,
-                        size: 20
-                    )
-
-                    Text(link.displayContactName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.9))
-                        .lineLimit(1)
-
-                    Text("·")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.6))
-
-                    // Domain
+                // Domain row
+                HStack(spacing: 4) {
                     Image(systemName: "globe")
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.7))
 
-                    Text((link.url.host ?? "").uppercased())
-                        .font(.system(size: 11, weight: .medium))
+                    Text((link.url.host ?? "").lowercased())
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.7))
                         .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
+            
+            // "From {Name}" pill in top-left
+            VStack {
+                HStack {
+                    SenderPill(name: link.displayContactName, profileImage: link.contactPhoto)
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding(12)
         }
+    }
+}
+
+// MARK: - Sender Pill (iMessage style "From Name" badge)
+struct SenderPill: View {
+    let name: String
+    let profileImage: Data?
+    
+    private var firstName: String {
+        name.components(separatedBy: " ").first ?? name
+    }
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            // Avatar with initial
+            ContactAvatarView(
+                name: name,
+                profileImage: profileImage,
+                size: 24
+            )
+            
+            // "From {FirstName}"
+            Text("From ")
+                .foregroundColor(.secondary) +
+            Text(firstName)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            // Chevron
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary)
+        }
+        .font(.system(size: 13))
+        .padding(.leading, 6)
+        .padding(.trailing, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+        )
     }
 }
 
@@ -402,7 +418,9 @@ private extension Message {
         isFromMe: false,
         chatIdentifier: "iMessage;+15551234567",
         contactName: "John",
-        payloadData: nil
+        payloadData: nil,
+        senderIdentifier: "+15551234567",
+        senderName: "John"
     )
 }
 
@@ -439,13 +457,13 @@ private extension ExtractedLink {
 }
 
 #Preview("With Image") {
-    HomeLinkCard(link: .sampleWithImage())
+    HomeLinkCard(link: .sampleWithImage(), isSelected: false, onSelect: {})
         .padding()
         .background(Color(hex: "#1a1a1a"))
 }
 
 #Preview("No Image") {
-    HomeLinkCard(link: .sampleNoImage())
+    HomeLinkCard(link: .sampleNoImage(), isSelected: false, onSelect: {})
         .padding()
         .background(Color(hex: "#1a1a1a"))
 }

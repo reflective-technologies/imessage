@@ -164,7 +164,9 @@ class MessageService {
                 isFromMe: isFromMe,
                 chatIdentifier: chatIdentifier,
                 contactName: contactName,
-                payloadData: payloadData
+                payloadData: payloadData,
+                senderIdentifier: nil,  // Not fetched in main list query for performance
+                senderName: nil
             )
 
             messages.append(message)
@@ -199,7 +201,6 @@ class MessageService {
                     // Try to extract cached OpenGraph data from iMessage's payload
                     if let cachedOGData = extractOpenGraphFromPayload(message.payloadData, for: url) {
                         link.openGraphData = cachedOGData
-                        print("✅ Loaded cached OpenGraph data for: \(url.absoluteString)")
                     }
 
                     links.append(link)
@@ -280,6 +281,7 @@ class MessageService {
         
         // Now fetch messages before and after in the same chat
         // We'll use a UNION to get 4 before and 4 after, plus the target message
+        // Include handle.id to get the sender's identifier for group chats
         let surroundingQuery = """
             SELECT * FROM (
                 -- Messages BEFORE (older, smaller dates)
@@ -288,9 +290,11 @@ class MessageService {
                     message.text,
                     message.date,
                     message.is_from_me,
-                    message.payload_data
+                    message.payload_data,
+                    handle.id as sender_id
                 FROM message
                 JOIN chat_message_join ON message.ROWID = chat_message_join.message_id
+                LEFT JOIN handle ON message.handle_id = handle.ROWID
                 WHERE chat_message_join.chat_id = ?
                   AND message.date < (SELECT date FROM message WHERE ROWID = ?)
                   AND message.text IS NOT NULL AND message.text != ''
@@ -305,8 +309,10 @@ class MessageService {
                     message.text,
                     message.date,
                     message.is_from_me,
-                    message.payload_data
+                    message.payload_data,
+                    handle.id as sender_id
                 FROM message
+                LEFT JOIN handle ON message.handle_id = handle.ROWID
                 WHERE message.ROWID = ?
             )
             UNION ALL
@@ -317,9 +323,11 @@ class MessageService {
                     message.text,
                     message.date,
                     message.is_from_me,
-                    message.payload_data
+                    message.payload_data,
+                    handle.id as sender_id
                 FROM message
                 JOIN chat_message_join ON message.ROWID = chat_message_join.message_id
+                LEFT JOIN handle ON message.handle_id = handle.ROWID
                 WHERE chat_message_join.chat_id = ?
                   AND message.date > (SELECT date FROM message WHERE ROWID = ?)
                   AND message.text IS NOT NULL AND message.text != ''
@@ -372,6 +380,15 @@ class MessageService {
                 payloadData = Data(bytes: blob, count: Int(blobSize))
             }
             
+            // Get sender identifier (handle.id) for group chats
+            var senderIdentifier: String?
+            if let cString = sqlite3_column_text(statement, 5) {
+                senderIdentifier = String(cString: cString)
+            }
+            
+            // Resolve sender name from contacts
+            let senderName = senderIdentifier != nil ? ContactService.shared.getContactName(for: senderIdentifier) : nil
+            
             let msg = Message(
                 id: id,
                 text: text,
@@ -379,7 +396,9 @@ class MessageService {
                 isFromMe: isFromMe,
                 chatIdentifier: chatIdentifier,
                 contactName: contactName,
-                payloadData: payloadData
+                payloadData: payloadData,
+                senderIdentifier: senderIdentifier,
+                senderName: senderName
             )
             
             messages.append(msg)
@@ -391,7 +410,9 @@ class MessageService {
         return messages
     }
 
-    private func extractOpenGraphFromPayload(_ payloadData: Data?, for url: URL) -> OpenGraphData? {
+    /// Extracts OpenGraph data from Apple's cached rich link payload data
+    /// This contains Twitter-specific fields when available
+    func extractOpenGraphFromPayload(_ payloadData: Data?, for url: URL) -> OpenGraphData? {
         guard let data = payloadData else { return nil }
 
         // Check if this is a Twitter URL
@@ -559,7 +580,7 @@ class MessageService {
     }
 
     /// Parses Twitter title format: "Author Name (@handle)\n11K likes · 2K replies"
-    private func parseTwitterTitle(_ title: String) -> (authorName: String?, handle: String?, likes: String?, replies: String?) {
+    func parseTwitterTitle(_ title: String) -> (authorName: String?, handle: String?, likes: String?, replies: String?) {
         var authorName: String?
         var handle: String?
         var likes: String?
