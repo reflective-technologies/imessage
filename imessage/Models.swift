@@ -62,7 +62,13 @@ class ExtractedLink: Identifiable, ObservableObject {
         url.absoluteString
     }
 
+    /// Display name for the sender - uses individual sender for group chats
     var displayContactName: String {
+        // For group chats, show the individual sender's name
+        if message.isGroupChat {
+            return message.senderDisplayName
+        }
+        // For 1:1 chats, show the contact name
         if let contactName = message.contactName {
             return contactName
         } else if let chatId = message.chatIdentifier {
@@ -72,8 +78,31 @@ class ExtractedLink: Identifiable, ObservableObject {
         }
     }
     
+    /// Display name for the chat/conversation (used in headers)
+    var displayChatName: String {
+        if let contactName = message.contactName {
+            return contactName
+        } else if let chatId = message.chatIdentifier {
+            return chatId
+        } else {
+            return "Unknown"
+        }
+    }
+    
+    /// Photo for the sender - uses individual sender for group chats
     var contactPhoto: Data? {
-        ContactService.shared.getContactPhoto(for: message.chatIdentifier)
+        if message.isGroupChat {
+            return message.senderPhoto
+        }
+        return ContactService.shared.getContactPhoto(for: message.chatIdentifier)
+    }
+    
+    /// Photo for the chat (for headers - nil for group chats)
+    var chatPhoto: Data? {
+        if message.isGroupChat {
+            return nil  // Group chats don't have a single photo
+        }
+        return ContactService.shared.getContactPhoto(for: message.chatIdentifier)
     }
 
     func loadOpenGraphData() {

@@ -196,24 +196,31 @@ struct HomeLinkCard: View {
                         }
                     }
 
-                    // Author name and handle
-                    if let authorName = ogData.twitterAuthorName {
-                        Text(authorName)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
+                    // Author name and handle - combined with proper truncation
+                    HStack(spacing: 4) {
+                        if let authorName = ogData.twitterAuthorName {
+                            Text(authorName)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.white)
+                                .lineLimit(1)
+                        }
 
-                    if let handle = ogData.twitterHandle {
-                        Text(handle)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.7))
+                        if let handle = ogData.twitterHandle {
+                            Text(handle)
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.7))
+                                .lineLimit(1)
+                                .layoutPriority(-1) // Handle truncates first
+                        }
                     }
+                    .truncationMode(.tail)
                     
-                    Spacer()
+                    Spacer(minLength: 4)
                     
                     Text("x.com")
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.5))
+                        .layoutPriority(1) // x.com always visible
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

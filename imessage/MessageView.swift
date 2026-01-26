@@ -46,17 +46,17 @@ struct MessageContextView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header - shows conversation name (not individual sender for group chats)
             HStack {
                 // Contact photo and name
                 HStack(spacing: 10) {
                     ContactAvatarView(
-                        name: link.displayContactName,
-                        profileImage: link.contactPhoto,
+                        name: link.displayChatName,
+                        profileImage: link.chatPhoto,
                         size: 32
                     )
                     
-                    Text(link.displayContactName)
+                    Text(link.displayChatName)
                         .font(.headline)
                         .foregroundColor(.white)
                 }
@@ -184,7 +184,8 @@ struct RealMessageListView: View {
                                 message: message,
                                 showTail: isLast,
                                 isHighlighted: isHighlighted,
-                                showAvatar: showAvatar
+                                showAvatar: showAvatar,
+                                isGroupChat: isGroupChat
                             )
                             .id(message.id)
                         }
@@ -274,22 +275,24 @@ struct RealMessageBubbleView: View {
     let showTail: Bool
     let isHighlighted: Bool
     let showAvatar: Bool
+    let isGroupChat: Bool
     @State private var detectedURL: URL?
     @State private var openGraphData: OpenGraphData?
     @State private var isLoadingOG = false
     
-    init(message: Message, showTail: Bool, isHighlighted: Bool = false, showAvatar: Bool = false) {
+    init(message: Message, showTail: Bool, isHighlighted: Bool = false, showAvatar: Bool = false, isGroupChat: Bool = false) {
         self.message = message
         self.showTail = showTail
         self.isHighlighted = isHighlighted
         self.showAvatar = showAvatar
+        self.isGroupChat = isGroupChat
     }
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
             if message.isFromMe {
                 Spacer(minLength: 60)
-            } else {
+            } else if isGroupChat {
                 // Avatar for group chats (or placeholder to maintain alignment)
                 if showAvatar {
                     ContactAvatarView(
@@ -298,7 +301,7 @@ struct RealMessageBubbleView: View {
                         size: 28
                     )
                 } else {
-                    // Invisible spacer to maintain alignment
+                    // Invisible spacer to maintain alignment in group chats
                     Color.clear
                         .frame(width: 28, height: 28)
                 }

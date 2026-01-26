@@ -93,10 +93,12 @@ class MessageService {
                  FROM chat_handle_join
                  JOIN handle ON chat_handle_join.handle_id = handle.ROWID
                  WHERE chat_handle_join.chat_id = chat.ROWID) as participants,
-                message.payload_data
+                message.payload_data,
+                handle.id as sender_id
             FROM message
             LEFT JOIN chat_message_join ON message.ROWID = chat_message_join.message_id
             LEFT JOIN chat ON chat_message_join.chat_id = chat.ROWID
+            LEFT JOIN handle ON message.handle_id = handle.ROWID
             WHERE message.text IS NOT NULL AND message.text != ''
             ORDER BY message.date DESC
             LIMIT 10000
@@ -149,13 +151,22 @@ class MessageService {
                 let blobSize = sqlite3_column_bytes(statement, 8)
                 payloadData = Data(bytes: blob, count: Int(blobSize))
             }
+            
+            // Get sender identifier (handle.id) - column 9
+            var senderIdentifier: String?
+            if let cString = sqlite3_column_text(statement, 9) {
+                senderIdentifier = String(cString: cString)
+            }
 
-            // Look up contact name
+            // Look up contact name for the chat
             let contactName = ContactService.shared.getContactName(
                 for: chatIdentifier,
                 groupChatName: groupChatName,
                 participants: participants
             )
+            
+            // Look up sender name for group chats
+            let senderName = senderIdentifier != nil ? ContactService.shared.getContactName(for: senderIdentifier) : nil
 
             let message = Message(
                 id: id,
@@ -165,8 +176,8 @@ class MessageService {
                 chatIdentifier: chatIdentifier,
                 contactName: contactName,
                 payloadData: payloadData,
-                senderIdentifier: nil,  // Not fetched in main list query for performance
-                senderName: nil
+                senderIdentifier: senderIdentifier,
+                senderName: senderName
             )
 
             messages.append(message)
